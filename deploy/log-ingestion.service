@@ -1,0 +1,51 @@
+[Unit]
+Description=Log Ingestion Service
+Documentation=https://github.com/your-org/log-ingestion-service
+After=network.target postgresql.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=log-ingestion
+Group=log-ingestion
+WorkingDirectory=/opt/log-ingestion
+ExecStart=/opt/log-ingestion/bin/server
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+# Environment file
+EnvironmentFile=-/etc/log-ingestion/env.conf
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/log-ingestion
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryMax=512M
+CPUQuota=100%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=log-ingestion
+
+[Install]
+WantedBy=multi-user.target
+
