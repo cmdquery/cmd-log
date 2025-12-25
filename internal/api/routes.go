@@ -9,10 +9,7 @@ import (
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config) {
-	// Root landing page (no auth required)
-	router.GET("/", handler.Index)
-	
+func SetupRoutes(router *gin.Engine, handler *Handler, keyManager *auth.KeyManager, cfg *config.Config) {
 	// Health check (no auth required)
 	router.GET("/health", handler.Health)
 	
@@ -20,7 +17,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config) {
 	v1 := router.Group("/api/v1")
 	{
 		// Apply authentication middleware
-		v1.Use(auth.APIKeyAuth(&cfg.Auth))
+		v1.Use(auth.APIKeyAuth(keyManager))
 		
 		// Apply rate limiting middleware
 		v1.Use(middleware.RateLimit(&cfg.RateLimit))

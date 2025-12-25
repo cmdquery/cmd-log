@@ -9,8 +9,7 @@ import (
 
 // SetupAdminRoutes configures all admin routes
 func SetupAdminRoutes(router *gin.Engine, adminHandler *AdminHandler, cfg *config.Config) {
-	// Login routes (no auth required)
-	router.GET("/admin/login", adminHandler.LoginForm)
+	// Login route (no auth required)
 	router.POST("/admin/login", adminHandler.Login)
 	
 	// Admin routes group
@@ -19,24 +18,22 @@ func SetupAdminRoutes(router *gin.Engine, adminHandler *AdminHandler, cfg *confi
 		// Apply admin authentication middleware
 		admin.Use(auth.AdminAuth(&cfg.Auth))
 		
-		// Dashboard (main page)
-		admin.GET("", adminHandler.Dashboard)
-		admin.GET("/", adminHandler.Dashboard)
-		
-		// Health status
+		// Health status (JSON endpoint)
 		admin.GET("/health", adminHandler.Health)
 		
 		// Metrics endpoint
 		admin.GET("/metrics", adminHandler.Metrics)
-		
-		// Logs page
-		admin.GET("/logs", adminHandler.Logs)
 		
 		// Recent logs JSON endpoint
 		admin.GET("/logs/recent", adminHandler.RecentLogs)
 		
 		// Statistics endpoint
 		admin.GET("/stats", adminHandler.Stats)
+		
+		// API Keys JSON endpoints
+		admin.GET("/api/keys", adminHandler.ListAPIKeys)
+		admin.POST("/api/keys", adminHandler.CreateAPIKey)
+		admin.DELETE("/api/keys/:id", adminHandler.DeleteAPIKey)
 	}
 }
 

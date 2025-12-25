@@ -21,6 +21,7 @@ The service accepts logs via HTTP POST requests, validates and sanitizes them, b
 Before you begin, ensure you have the following installed:
 
 - **Go 1.21 or later** - [Download Go](https://golang.org/dl/)
+- **Node.js 18 or later** - [Download Node.js](https://nodejs.org/) (for building the frontend)
 - **Docker Desktop** (for macOS/Windows) or Docker Engine (for Linux) - [Download Docker](https://www.docker.com/products/docker-desktop)
 - **Docker Compose** - Usually included with Docker Desktop
 
@@ -71,7 +72,15 @@ If Docker is not running, start Docker Desktop (macOS/Windows) or the Docker ser
    ```
    If you don't create a `.env` file, the service will use default values.
 
-6. **Build and run the service**:
+6. **Build the frontend** (first time only, or when frontend changes):
+   ```bash
+   cd web
+   npm install
+   npm run build
+   cd ..
+   ```
+
+7. **Build and run the service**:
    ```bash
    make build
    ./bin/server
@@ -80,6 +89,12 @@ If Docker is not running, start Docker Desktop (macOS/Windows) or the Docker ser
    Or run directly without building:
    ```bash
    make run
+   ```
+   
+   Note: The `make build` command automatically builds the frontend. For development, you can run the frontend dev server separately:
+   ```bash
+   cd web
+   npm run dev
    ```
 
 7. **Verify the service is running**:
@@ -279,9 +294,33 @@ make test
 
 ### Building
 
+Build both frontend and backend:
 ```bash
 make build
 ```
+
+Build only the frontend:
+```bash
+cd web
+npm install
+npm run build
+```
+
+Build only the backend:
+```bash
+go build -o bin/server ./cmd/server
+```
+
+### Frontend Development
+
+For frontend development with hot reload:
+```bash
+cd web
+npm install
+npm run dev
+```
+
+This will start the Vite dev server on `http://localhost:5173` with proxy to the Go backend.
 
 ### Docker Commands
 

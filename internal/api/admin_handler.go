@@ -2,7 +2,10 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"log"
 	"log-ingestion-service/internal/batch"
 	"log-ingestion-service/internal/storage"
 	"log-ingestion-service/pkg/config"
@@ -29,13 +32,6 @@ func NewAdminHandler(repo *storage.Repository, batcher *batch.Batcher, cfg *conf
 		config:     cfg,
 		startTime:  time.Now(),
 	}
-}
-
-// Dashboard renders the main admin dashboard
-func (h *AdminHandler) Dashboard(c *gin.Context) {
-	c.HTML(http.StatusOK, "dashboard.html", gin.H{
-		"title": "Admin Dashboard",
-	})
 }
 
 // Health returns detailed health status
@@ -80,14 +76,7 @@ func (h *AdminHandler) Health(c *gin.Context) {
 		health["status"] = "unhealthy"
 	}
 	
-	if c.GetHeader("Accept") == "application/json" || c.Query("format") == "json" {
-		c.JSON(http.StatusOK, health)
-	} else {
-		c.HTML(http.StatusOK, "health.html", gin.H{
-			"title":  "Health Status",
-			"health": health,
-		})
-	}
+	c.JSON(http.StatusOK, health)
 }
 
 // Metrics returns service metrics
@@ -144,13 +133,6 @@ func (h *AdminHandler) Metrics(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, metrics)
-}
-
-// Logs renders the recent logs page
-func (h *AdminHandler) Logs(c *gin.Context) {
-	c.HTML(http.StatusOK, "logs.html", gin.H{
-		"title": "Recent Logs",
-	})
 }
 
 // RecentLogs returns recent logs as JSON
@@ -226,26 +208,146 @@ func (h *AdminHandler) Stats(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// LoginForm renders the login page
-func (h *AdminHandler) LoginForm(c *gin.Context) {
-	c.HTML(http.StatusOK, "login.html", gin.H{})
-}
-
 // Login handles login form submission
 func (h *AdminHandler) Login(c *gin.Context) {
-	password := c.PostForm("password")
+	var req struct {
+		Password string `json:"password" form:"password"`
+	}
+	
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request",
+			"details": err.Error(),
+		})
+		return
+	}
 	
 	// Hardcoded password for dev
-	if password == "thuglife" {
+	if req.Password == "thuglife" {
 		// Set cookie with API key value 'thuglife'
 		c.SetCookie("admin_api_key", "thuglife", 86400*7, "/", "", false, false) // 7 days, httpOnly=false for now
-		c.Redirect(http.StatusSeeOther, "/admin")
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Login successful",
+		})
 		return
 	}
 	
 	// Invalid password
-	c.HTML(http.StatusUnauthorized, "login.html", gin.H{
+	c.JSON(http.StatusUnauthorized, gin.H{
+		"success": false,
 		"error": "Invalid password",
+	})
+}
+
+// ListAPIKeys returns all API keys as JSON (keys are masked for security)
+func (h *AdminHandler) ListAPIKeys(c *gin.Context) {
+	ctx := context.Background()
+	
+	keys, err := h.repository.ListAPIKeys(ctx)
+	if err != nil {
+		log.Printf("ERROR: Failed to list API keys: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to list API keys",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Keys are returned without the actual key value for security
+	responseKeys := make([]gin.H, len(keys))
+	for i, key := range keys {
+		responseKeys[i] = gin.H{
+			"id":          key.ID,
+			"name":        key.Name,
+			"description": key.Description,
+			"created_at":  key.CreatedAt,
+			"is_active":   key.IsActive,
+		}
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"keys": responseKeys,
+	})
+}
+
+// CreateAPIKeyRequest represents the request to create a new API key
+type CreateAPIKeyRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
+}
+
+// CreateAPIKey creates a new API key
+func (h *AdminHandler) CreateAPIKey(c *gin.Context) {
+	var req CreateAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("ERROR: Invalid request to create API key: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	// Generate a secure random API key (32 bytes, base64 encoded = ~44 chars)
+	keyBytes := make([]byte, 32)
+	if _, err := rand.Read(keyBytes); err != nil {
+		log.Printf("ERROR: Failed to generate random bytes for API key: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate API key",
+			"details": err.Error(),
+		})
+		return
+	}
+	apiKey := base64.URLEncoding.EncodeToString(keyBytes)
+	
+	ctx := context.Background()
+	createdKey, err := h.repository.CreateAPIKey(ctx, req.Name, req.Description, apiKey)
+	if err != nil {
+		log.Printf("ERROR: Failed to create API key in database: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create API key",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	log.Printf("INFO: API key created successfully: ID=%d, Name=%s", createdKey.ID, createdKey.Name)
+	
+	// Return the full key only once (for the user to copy)
+	c.JSON(http.StatusOK, gin.H{
+		"id":          createdKey.ID,
+		"key":         createdKey.Key,
+		"name":        createdKey.Name,
+		"description": createdKey.Description,
+		"created_at":  createdKey.CreatedAt,
+		"is_active":   createdKey.IsActive,
+		"message":     "API key created successfully. Please copy it now as it won't be shown again.",
+	})
+}
+
+// DeleteAPIKey deletes an API key (soft delete)
+func (h *AdminHandler) DeleteAPIKey(c *gin.Context) {
+	idStr := c.Param("id")
+	var id int64
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid API key ID",
+		})
+		return
+	}
+	
+	ctx := context.Background()
+	if err := h.repository.DeleteAPIKey(ctx, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to delete API key",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"message": "API key deleted successfully",
 	})
 }
 

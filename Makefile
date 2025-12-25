@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-up docker-down docker-check migrate
+.PHONY: help build build-frontend run test clean docker-up docker-down docker-check migrate
 
 # Check if Docker daemon is running
 check_docker = @docker info >/dev/null 2>&1 || (echo "Error: Docker daemon is not running. Please start Docker Desktop and try again." && exit 1)
@@ -9,7 +9,11 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Build the application
+build-frontend: ## Build the Vue frontend
+	@echo "Building frontend..."
+	@cd web && npm install && npm run build
+
+build: build-frontend ## Build the application (includes frontend)
 	go build -o bin/server ./cmd/server
 
 run: ## Run the application
@@ -35,6 +39,8 @@ migrate: ## Run database migrations
 	@echo "Running migrations..."
 	@docker-compose exec -T timescaledb psql -U postgres -d logs < migrations/001_create_logs_table.sql || \
 	psql -h localhost -U postgres -d logs -f migrations/001_create_logs_table.sql
+	@docker-compose exec -T timescaledb psql -U postgres -d logs < migrations/002_create_api_keys_table.sql || \
+	psql -h localhost -U postgres -d logs -f migrations/002_create_api_keys_table.sql
 
 setup: docker-up migrate ## Setup development environment
 

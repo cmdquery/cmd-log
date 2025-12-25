@@ -131,10 +131,3 @@ func (h *Handler) Health(c *gin.Context) {
 	})
 }
 
-// Index handles the root path and renders the landing page
-func (h *Handler) Index(c *gin.Context) {
-	c.HTML(http.StatusOK, "index.html", gin.H{
-		"title": "Log Ingestion Service",
-	})
-}
-

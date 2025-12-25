@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log-ingestion-service/internal/api"
+	"log-ingestion-service/internal/auth"
 	"log-ingestion-service/internal/batch"
 	"log-ingestion-service/internal/storage"
 	"log-ingestion-service/pkg/config"
@@ -35,6 +36,9 @@ func main() {
 	// Initialize repository
 	repo := storage.NewRepository(dbPool)
 	
+	// Initialize key manager
+	keyManager := auth.NewKeyManager(repo)
+	
 	// Initialize batcher
 	batcher := batch.NewBatcher(repo, &cfg.Batch)
 	defer batcher.Shutdown()
@@ -48,18 +52,26 @@ func main() {
 	// Setup router
 	router := gin.Default()
 	
-	// Load HTML templates
-	router.LoadHTMLGlob("web/templates/*")
+	// Serve static files from Vue build
+	router.Static("/assets", "./web/dist/assets")
 	
-	// Serve static files
-	router.Static("/static", "./web/static")
+	// Serve Vue app index.html for all non-API routes (SPA routing)
+	router.NoRoute(func(c *gin.Context) {
+		// Don't serve index.html for API routes
+		path := c.Request.URL.Path
+		if len(path) >= 4 && path[:4] == "/api" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+			return
+		}
+		c.File("./web/dist/index.html")
+	})
 	
 	// Add request logging middleware
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	
 	// Setup routes
-	api.SetupRoutes(router, handler, cfg)
+	api.SetupRoutes(router, handler, keyManager, cfg)
 	
 	// Setup admin routes
 	api.SetupAdminRoutes(router, adminHandler, cfg)

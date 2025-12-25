@@ -29,6 +29,43 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Variables for process management
+FRONTEND_PID=""
+BACKEND_CONTAINER="log-ingestion-app"
+
+# Function to cleanup on exit
+cleanup() {
+    echo ""
+    print_info "Shutting down services..."
+    
+    # Kill frontend dev server if running
+    if [ ! -z "$FRONTEND_PID" ] && kill -0 $FRONTEND_PID 2>/dev/null; then
+        print_info "Stopping frontend dev server (PID: $FRONTEND_PID)..."
+        # Kill the process and its children
+        kill -TERM $FRONTEND_PID 2>/dev/null || true
+        sleep 1
+        # Force kill if still running
+        kill -KILL $FRONTEND_PID 2>/dev/null || true
+        wait $FRONTEND_PID 2>/dev/null || true
+    fi
+    
+    # Kill any remaining node/npm processes related to our frontend
+    pkill -f "vite.*5173" 2>/dev/null || true
+    
+    # Stop backend Docker container
+    print_info "Stopping backend server..."
+    if [ ! -z "$DOCKER_COMPOSE" ] && docker ps --format '{{.Names}}' | grep -q "^${BACKEND_CONTAINER}$"; then
+        $DOCKER_COMPOSE stop app >/dev/null 2>&1 || true
+        $DOCKER_COMPOSE rm -f app >/dev/null 2>&1 || true
+    fi
+    
+    print_success "All services stopped"
+    exit 0
+}
+
+# Trap Ctrl+C and call cleanup function
+trap cleanup SIGINT SIGTERM
+
 # Step 1: Check Prerequisites
 echo -e "\n${BLUE}=== Checking Prerequisites ===${NC}\n"
 
@@ -45,13 +82,21 @@ if ! docker info >/dev/null 2>&1; then
 fi
 print_success "Docker is installed and running"
 
-# Check Go (optional, but warn if missing)
-if ! command_exists go; then
-    print_warning "Go is not installed. The server may not start correctly."
-else
-    GO_VERSION=$(go version | awk '{print $3}')
-    print_success "Go is installed ($GO_VERSION)"
+# Check Node.js
+if ! command_exists node; then
+    print_error "Node.js is not installed. Please install Node.js 18 or later."
+    exit 1
 fi
+NODE_VERSION=$(node --version)
+print_success "Node.js is installed ($NODE_VERSION)"
+
+# Check npm
+if ! command_exists npm; then
+    print_error "npm is not installed. Please install npm."
+    exit 1
+fi
+NPM_VERSION=$(npm --version)
+print_success "npm is installed (v$NPM_VERSION)"
 
 # Check Docker Compose
 if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
@@ -117,12 +162,14 @@ fi
 echo -e "\n${BLUE}=== Running Migrations ===${NC}\n"
 
 print_info "Running database migrations..."
-if $DOCKER_COMPOSE exec -T timescaledb psql -U postgres -d logs < migrations/001_create_logs_table.sql >/dev/null 2>&1; then
+MIGRATION_OUTPUT=$($DOCKER_COMPOSE exec -T timescaledb psql -U postgres -d logs < migrations/001_create_logs_table.sql 2>&1)
+MIGRATION_EXIT_CODE=$?
+
+if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
     print_success "Migrations completed successfully"
 else
     # Check if it's just a "table already exists" error (idempotent)
-    MIGRATION_OUTPUT=$($DOCKER_COMPOSE exec -T timescaledb psql -U postgres -d logs < migrations/001_create_logs_table.sql 2>&1)
-    if echo "$MIGRATION_OUTPUT" | grep -q "already exists\|duplicate\|ERROR"; then
+    if echo "$MIGRATION_OUTPUT" | grep -q "already exists\|duplicate"; then
         print_warning "Migrations may have already been applied (this is okay)"
     else
         print_error "Migration failed. Output:"
@@ -131,79 +178,72 @@ else
     fi
 fi
 
-# Step 5: Start Server
-echo -e "\n${BLUE}=== Starting Server ===${NC}\n"
+# Step 5: Setup Frontend
+echo -e "\n${BLUE}=== Setting Up Frontend ===${NC}\n"
 
-# Get the network name that the database container is on
-NETWORK_NAME=$(docker inspect --format='{{range $net, $conf := .NetworkSettings.Networks}}{{$net}}{{end}}' $CONTAINER_NAME 2>/dev/null | head -n1)
-
-if [ -z "$NETWORK_NAME" ]; then
-    print_error "Could not determine network for database container"
-    exit 1
-fi
-
-# Build Docker image
-print_info "Building server Docker image..."
-BUILD_OUTPUT=$(docker build -t log-ingestion-server:latest . 2>&1)
-BUILD_EXIT_CODE=$?
-
-if [ $BUILD_EXIT_CODE -eq 0 ]; then
-    print_success "Server image built successfully"
+# Check if node_modules exists
+if [ ! -d "web/node_modules" ]; then
+    print_info "Installing frontend dependencies..."
+    cd web
+    if npm install; then
+        print_success "Frontend dependencies installed"
+    else
+        print_error "Failed to install frontend dependencies"
+        exit 1
+    fi
+    cd ..
 else
-    print_error "Failed to build server image"
-    echo ""
-    echo "Build output:"
-    echo "$BUILD_OUTPUT"
+    print_success "Frontend dependencies already installed"
+fi
+
+# Step 6: Start Frontend Dev Server
+echo -e "\n${BLUE}=== Starting Frontend Dev Server ===${NC}\n"
+
+print_info "Starting frontend dev server on http://localhost:5173"
+cd web
+# Start frontend in background with output to log file
+npm run dev > /tmp/frontend.log 2>&1 &
+FRONTEND_PID=$!
+cd ..
+
+# Wait a moment for the server to start
+sleep 3
+
+# Check if frontend server is still running
+if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+    print_error "Frontend dev server failed to start"
+    echo "Frontend logs:"
+    cat /tmp/frontend.log 2>/dev/null || true
     exit 1
 fi
 
-# Determine server container name
-SERVER_CONTAINER_NAME="log-ingestion-server"
+print_success "Frontend dev server started (PID: $FRONTEND_PID)"
+print_info "Frontend running at http://localhost:5173"
+print_info "Frontend logs: tail -f /tmp/frontend.log"
 
-# Clean up any existing server container
-if docker ps -a --format '{{.Names}}' | grep -q "^${SERVER_CONTAINER_NAME}$"; then
-    print_info "Removing existing server container..."
-    docker rm -f $SERVER_CONTAINER_NAME >/dev/null 2>&1
+# Step 7: Build and Start Backend Server
+echo -e "\n${BLUE}=== Building and Starting Backend Server ===${NC}\n"
+
+print_info "Building backend Docker image..."
+if $DOCKER_COMPOSE build app >/dev/null 2>&1; then
+    print_success "Backend Docker image built"
+else
+    print_error "Failed to build backend Docker image"
+    exit 1
 fi
 
-print_success "All prerequisites met. Starting server..."
-print_info "Server will run on http://localhost:8080"
-print_info "Press Ctrl+C to stop the server\n"
+print_info "Starting backend server on http://localhost:8080"
+print_info "Press Ctrl+C to stop all services"
+echo ""
+print_info "Services:"
+print_info "  - Frontend: http://localhost:5173 (background, logs: /tmp/frontend.log)"
+print_info "  - Backend:  http://localhost:8080 (Docker container, foreground)"
+echo ""
 
-# Function to cleanup on exit
-cleanup() {
-    echo ""
-    print_info "Stopping server container..."
-    # Try to stop the container (may already be stopped/removed with --rm)
-    docker stop $SERVER_CONTAINER_NAME >/dev/null 2>&1 || true
-    print_success "Server stopped"
-    exit 0
-}
+# Run backend in foreground - this will block until Ctrl+C
+# Frontend continues running in background
+# Use --no-deps to avoid restarting timescaledb, and remove container on exit
+$DOCKER_COMPOSE up --no-deps app
 
-# Trap Ctrl+C and call cleanup function
-trap cleanup SIGINT SIGTERM
-
-# Run the server container
-# Using --rm so container is automatically removed when it stops
-docker run --rm \
-    --name $SERVER_CONTAINER_NAME \
-    --network $NETWORK_NAME \
-    -p 8080:8080 \
-    -e LOG_INGESTION_SERVER_HOST=0.0.0.0 \
-    -e LOG_INGESTION_SERVER_PORT=8080 \
-    -e LOG_INGESTION_DB_HOST=$CONTAINER_NAME \
-    -e LOG_INGESTION_DB_PORT=5432 \
-    -e LOG_INGESTION_DB_USER=postgres \
-    -e LOG_INGESTION_DB_PASSWORD=postgres \
-    -e LOG_INGESTION_DB_NAME=logs \
-    -e LOG_INGESTION_DB_SSLMODE=disable \
-    -e LOG_INGESTION_BATCH_SIZE=1000 \
-    -e LOG_INGESTION_BATCH_FLUSH_INTERVAL=5s \
-    -e LOG_INGESTION_RATELIMIT_ENABLED=true \
-    -e LOG_INGESTION_RATELIMIT_DEFAULT_RPS=100 \
-    -e LOG_INGESTION_RATELIMIT_BURST=200 \
-    log-ingestion-server:latest
-
-# If we get here, the container exited
-cleanup
-
+# If we get here, backend exited (or was interrupted)
+# Cleanup will be called by trap

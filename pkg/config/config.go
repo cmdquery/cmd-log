@@ -51,7 +51,6 @@ type RateLimitConfig struct {
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	APIKeys     []string `mapstructure:"api_keys"`
 	AdminAPIKeys []string `mapstructure:"admin_api_keys"`
 }
 
@@ -122,18 +121,6 @@ func bindEnvVars() {
 	viper.BindEnv("ratelimit.enabled", "LOG_INGESTION_RATELIMIT_ENABLED")
 	viper.BindEnv("ratelimit.default_rps", "LOG_INGESTION_RATELIMIT_DEFAULT_RPS")
 	viper.BindEnv("ratelimit.burst", "LOG_INGESTION_RATELIMIT_BURST")
-	
-	// API keys from environment (comma-separated)
-	if apiKeys := os.Getenv("LOG_INGESTION_API_KEYS"); apiKeys != "" {
-		keys := strings.Split(apiKeys, ",")
-		var trimmedKeys []string
-		for _, key := range keys {
-			if trimmed := strings.TrimSpace(key); trimmed != "" {
-				trimmedKeys = append(trimmedKeys, trimmed)
-			}
-		}
-		viper.Set("auth.api_keys", trimmedKeys)
-	}
 	
 	// Admin API keys from environment (comma-separated)
 	if adminKeys := os.Getenv("LOG_INGESTION_ADMIN_API_KEYS"); adminKeys != "" {

@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log-ingestion-service/pkg/models"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -239,6 +241,16 @@ func (r *Repository) GetErrorLogs(ctx context.Context, limit int, timeRange time
 	return logs, nil
 }
 
+// APIKey represents an API key in the database
+type APIKey struct {
+	ID          int64     `json:"id"`
+	Key         string    `json:"key"` // Only returned when creating
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	IsActive    bool      `json:"is_active"`
+}
+
 // TimeSeriesPoint represents a data point for time series charts
 type TimeSeriesPoint struct {
 	Time  time.Time `json:"time"`
@@ -289,5 +301,143 @@ func (r *Repository) GetTimeSeriesData(ctx context.Context, timeRange time.Durat
 	}
 	
 	return points, nil
+}
+
+// CreateAPIKey creates a new API key in the database
+func (r *Repository) CreateAPIKey(ctx context.Context, name, description, key string) (*APIKey, error) {
+	query := `
+		INSERT INTO api_keys (key, name, description, created_at, is_active)
+		VALUES ($1, $2, $3, NOW(), TRUE)
+		RETURNING id, key, name, description, created_at, is_active
+	`
+	
+	var apiKey APIKey
+	err := r.pool.QueryRow(ctx, query, key, name, description).Scan(
+		&apiKey.ID,
+		&apiKey.Key,
+		&apiKey.Name,
+		&apiKey.Description,
+		&apiKey.CreatedAt,
+		&apiKey.IsActive,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating API key: %w", err)
+	}
+	
+	return &apiKey, nil
+}
+
+// ListAPIKeys returns all API keys (including inactive ones)
+func (r *Repository) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
+	query := `
+		SELECT id, name, description, created_at, is_active
+		FROM api_keys
+		ORDER BY created_at DESC
+	`
+	
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("error listing API keys: %w", err)
+	}
+	defer rows.Close()
+	
+	var keys []APIKey
+	for rows.Next() {
+		var key APIKey
+		err := rows.Scan(
+			&key.ID,
+			&key.Name,
+			&key.Description,
+			&key.CreatedAt,
+			&key.IsActive,
+		)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	
+	return keys, nil
+}
+
+// DeleteAPIKey soft deletes an API key by setting is_active to false
+func (r *Repository) DeleteAPIKey(ctx context.Context, id int64) error {
+	query := `
+		UPDATE api_keys
+		SET is_active = FALSE
+		WHERE id = $1
+	`
+	
+	result, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("error deleting API key: %w", err)
+	}
+	
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("API key with id %d not found", id)
+	}
+	
+	return nil
+}
+
+// GetAPIKeyByValue checks if an API key exists and is active
+func (r *Repository) GetAPIKeyByValue(ctx context.Context, key string) (bool, error) {
+	// #region agent log
+	if f, _ := os.OpenFile("/Users/moiz/Code/cmd-log/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); f != nil {
+		json.NewEncoder(f).Encode(map[string]interface{}{"sessionId": "debug-session", "runId": "run1", "hypothesisId": "A,B,D,E", "location": "repository.go:382", "message": "GetAPIKeyByValue entry", "data": map[string]interface{}{"key": key, "keyLength": len(key), "keyBytes": []byte(key)}, "timestamp": time.Now().UnixMilli()})
+		f.Close()
+	}
+	// #endregion
+	var exists bool
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM api_keys
+			WHERE key = $1 AND is_active = TRUE
+		)
+	`
+	
+	err := r.pool.QueryRow(ctx, query, key).Scan(&exists)
+	// #region agent log
+	if f, _ := os.OpenFile("/Users/moiz/Code/cmd-log/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); f != nil {
+		allKeys, _ := r.GetAllActiveAPIKeys(ctx)
+		errStr := ""
+		if err != nil {
+			errStr = err.Error()
+		}
+		json.NewEncoder(f).Encode(map[string]interface{}{"sessionId": "debug-session", "runId": "run1", "hypothesisId": "A,B,D,E", "location": "repository.go:391", "message": "Database query result", "data": map[string]interface{}{"exists": exists, "error": errStr, "allActiveKeys": allKeys}, "timestamp": time.Now().UnixMilli()})
+		f.Close()
+	}
+	// #endregion
+	if err != nil {
+		return false, fmt.Errorf("error checking API key: %w", err)
+	}
+	
+	return exists, nil
+}
+
+// GetAllActiveAPIKeys returns all active API key strings (for validation)
+func (r *Repository) GetAllActiveAPIKeys(ctx context.Context) ([]string, error) {
+	query := `
+		SELECT key
+		FROM api_keys
+		WHERE is_active = TRUE
+	`
+	
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting active API keys: %w", err)
+	}
+	defer rows.Close()
+	
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	
+	return keys, nil
 }
 
