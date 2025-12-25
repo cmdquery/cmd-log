@@ -226,6 +226,29 @@ func (h *AdminHandler) Stats(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// LoginForm renders the login page
+func (h *AdminHandler) LoginForm(c *gin.Context) {
+	c.HTML(http.StatusOK, "login.html", gin.H{})
+}
+
+// Login handles login form submission
+func (h *AdminHandler) Login(c *gin.Context) {
+	password := c.PostForm("password")
+	
+	// Hardcoded password for dev
+	if password == "thuglife" {
+		// Set cookie with API key value 'thuglife'
+		c.SetCookie("admin_api_key", "thuglife", 86400*7, "/", "", false, false) // 7 days, httpOnly=false for now
+		c.Redirect(http.StatusSeeOther, "/admin")
+		return
+	}
+	
+	// Invalid password
+	c.HTML(http.StatusUnauthorized, "login.html", gin.H{
+		"error": "Invalid password",
+	})
+}
+
 // Helper function to parse integer
 func parseInt(s string) (int, error) {
 	var result int

@@ -1,9 +1,15 @@
+-- Drop hypertable if it exists (this will also drop the underlying table)
+SELECT drop_hypertable('logs', if_exists => TRUE);
+
+-- Drop table if it exists (fallback if it's not a hypertable yet)
+DROP TABLE IF EXISTS logs;
+
 -- Create logs table
-CREATE TABLE IF NOT EXISTS logs (
-    id BIGSERIAL PRIMARY KEY,
+CREATE TABLE logs (
+    id BIGSERIAL,
     timestamp TIMESTAMPTZ NOT NULL,
-    service VARCHAR(255) NOT NULL,
-    level VARCHAR(50) NOT NULL,
+    service TEXT NOT NULL,
+    level TEXT NOT NULL,
     message TEXT NOT NULL,
     metadata JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()

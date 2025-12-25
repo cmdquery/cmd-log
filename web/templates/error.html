@@ -14,7 +14,11 @@
             <p>{{.message}}</p>
         </div>
         <div class="error-actions">
+            {{if or (eq .error "Admin API key is required") (eq .error "Invalid admin API key")}}
+            <a href="/admin/login" class="btn btn-primary">Login</a>
+            {{else}}
             <a href="/admin" class="btn btn-primary">Go to Dashboard</a>
+            {{end}}
         </div>
     </div>
 </body>

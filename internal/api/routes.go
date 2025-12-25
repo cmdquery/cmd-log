@@ -10,6 +10,9 @@ import (
 
 // SetupRoutes configures all API routes
 func SetupRoutes(router *gin.Engine, handler *Handler, cfg *config.Config) {
+	// Root landing page (no auth required)
+	router.GET("/", handler.Index)
+	
 	// Health check (no auth required)
 	router.GET("/health", handler.Health)
 	

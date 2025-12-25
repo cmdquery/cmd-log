@@ -9,6 +9,10 @@ import (
 
 // SetupAdminRoutes configures all admin routes
 func SetupAdminRoutes(router *gin.Engine, adminHandler *AdminHandler, cfg *config.Config) {
+	// Login routes (no auth required)
+	router.GET("/admin/login", adminHandler.LoginForm)
+	router.POST("/admin/login", adminHandler.Login)
+	
 	// Admin routes group
 	admin := router.Group("/admin")
 	{

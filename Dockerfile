@@ -7,9 +7,10 @@ RUN apk add --no-cache git
 # Set working directory
 WORKDIR /build
 
-# Copy go mod files
-COPY go.mod ./
-COPY go.sum ./
+# Copy go mod files (both go.mod and go.sum)
+COPY go.mod go.sum ./
+
+# Download all dependencies to verify go.sum and populate module cache
 RUN go mod download
 
 # Copy source code
@@ -36,6 +37,9 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /build/server .
+
+# Copy web directory (templates and static files)
+COPY --from=builder /build/web ./web
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app
