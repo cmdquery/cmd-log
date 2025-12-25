@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if .title}}{{.title}} - {{end}}Log Ingestion Admin</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">Log Ingestion Admin</h1>
+            <ul class="nav-menu">
+                <li><a href="/admin" class="{{if eq .title "Admin Dashboard"}}active{{end}}">Dashboard</a></li>
+                <li><a href="/admin/logs" class="{{if eq .title "Recent Logs"}}active{{end}}">Logs</a></li>
+                <li><a href="/admin/health" class="{{if eq .title "Health Status"}}active{{end}}">Health</a></li>
+            </ul>
+        </div>
+    </nav>
+    <main class="main-content">
+        {{block "content" .}}{{end}}
+    </main>
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
+

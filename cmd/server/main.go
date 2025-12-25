@@ -42,8 +42,17 @@ func main() {
 	// Initialize handler
 	handler := api.NewHandler(batcher)
 	
+	// Initialize admin handler
+	adminHandler := api.NewAdminHandler(repo, batcher, cfg)
+	
 	// Setup router
 	router := gin.Default()
+	
+	// Load HTML templates
+	router.LoadHTMLGlob("web/templates/*")
+	
+	// Serve static files
+	router.Static("/static", "./web/static")
 	
 	// Add request logging middleware
 	router.Use(gin.Logger())
@@ -51,6 +60,9 @@ func main() {
 	
 	// Setup routes
 	api.SetupRoutes(router, handler, cfg)
+	
+	// Setup admin routes
+	api.SetupAdminRoutes(router, adminHandler, cfg)
 	
 	// Create HTTP server
 	srv := &http.Server{

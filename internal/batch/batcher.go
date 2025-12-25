@@ -19,6 +19,11 @@ type Batcher struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
+	// Metrics
+	totalProcessed int64
+	flushCount     int64
+	errorCount     int64
+	startTime      time.Time
 }
 
 // NewBatcher creates a new batcher
@@ -32,6 +37,7 @@ func NewBatcher(repo *storage.Repository, cfg *config.BatchConfig) *Batcher {
 		flushTicker: time.NewTicker(cfg.FlushInterval),
 		ctx:         ctx,
 		cancel:      cancel,
+		startTime:   time.Now(),
 	}
 	
 	// Start background flush routine
@@ -47,6 +53,7 @@ func (b *Batcher) Add(logEntry models.LogEntry) error {
 	defer b.mu.Unlock()
 	
 	b.batch = append(b.batch, logEntry)
+	b.totalProcessed++
 	
 	// Flush if batch is full
 	if len(b.batch) >= b.config.Size {
@@ -62,6 +69,7 @@ func (b *Batcher) AddBatch(logEntries []models.LogEntry) error {
 	defer b.mu.Unlock()
 	
 	b.batch = append(b.batch, logEntries...)
+	b.totalProcessed += int64(len(logEntries))
 	
 	// Flush if batch is full
 	if len(b.batch) >= b.config.Size {
@@ -100,6 +108,12 @@ func (b *Batcher) flushLocked() error {
 	// Re-acquire lock
 	b.mu.Lock()
 	
+	// Update metrics
+	b.flushCount++
+	if err != nil {
+		b.errorCount++
+	}
+	
 	return err
 }
 
@@ -125,5 +139,30 @@ func (b *Batcher) Shutdown() error {
 	b.flushTicker.Stop()
 	b.wg.Wait()
 	return b.Flush()
+}
+
+// GetMetrics returns current batcher metrics
+func (b *Batcher) GetMetrics() BatcherMetrics {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	
+	return BatcherMetrics{
+		CurrentBatchSize: len(b.batch),
+		TotalProcessed:   b.totalProcessed,
+		FlushCount:       b.flushCount,
+		ErrorCount:       b.errorCount,
+		Uptime:           time.Since(b.startTime),
+		Config:           *b.config,
+	}
+}
+
+// BatcherMetrics holds batcher performance metrics
+type BatcherMetrics struct {
+	CurrentBatchSize int           `json:"current_batch_size"`
+	TotalProcessed   int64         `json:"total_processed"`
+	FlushCount       int64         `json:"flush_count"`
+	ErrorCount       int64         `json:"error_count"`
+	Uptime           time.Duration `json:"uptime"`
+	Config           config.BatchConfig `json:"config"`
 }
 

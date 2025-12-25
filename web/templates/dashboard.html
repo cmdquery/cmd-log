@@ -1,0 +1,228 @@
+{{template "base.html" .}}
+
+{{define "content"}}
+<div class="dashboard">
+    <h2>Dashboard</h2>
+    
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <h3>Service Status</h3>
+            <div class="metric-value" id="service-status">
+                <span class="status-indicator" id="status-indicator">●</span>
+                <span id="status-text">Checking...</span>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Logs Per Second</h3>
+            <div class="metric-value" id="logs-per-second">-</div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Total Logs (24h)</h3>
+            <div class="metric-value" id="total-logs">-</div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-value" id="error-count">
+                <span class="error-badge">-</span>
+            </div>
+            <h3>Recent Errors (1h)</h3>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Batch Status</h3>
+            <div class="metric-value">
+                <div>Current: <span id="batch-current">-</span></div>
+                <div>Processed: <span id="batch-processed">-</span></div>
+                <div>Flushes: <span id="batch-flushes">-</span></div>
+            </div>
+        </div>
+        
+        <div class="metric-card">
+            <h3>Uptime</h3>
+            <div class="metric-value" id="uptime">-</div>
+        </div>
+    </div>
+    
+    <div class="charts-section">
+        <div class="chart-card">
+            <h3>Log Volume Over Time</h3>
+            <canvas id="volume-chart"></canvas>
+        </div>
+        
+        <div class="chart-card">
+            <h3>Logs by Service</h3>
+            <canvas id="service-chart"></canvas>
+        </div>
+        
+        <div class="chart-card">
+            <h3>Logs by Level</h3>
+            <canvas id="level-chart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Initialize dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboardData();
+        setInterval(loadDashboardData, 5000); // Refresh every 5 seconds
+    });
+    
+    function loadDashboardData() {
+        fetch('/admin/metrics?range=24h&interval=5m')
+            .then(response => response.json())
+            .then(data => {
+                updateMetrics(data);
+                updateCharts(data);
+            })
+            .catch(error => {
+                console.error('Error loading metrics:', error);
+                document.getElementById('status-text').textContent = 'Error';
+                document.getElementById('status-indicator').className = 'status-indicator error';
+            });
+        
+        fetch('/admin/health?format=json')
+            .then(response => response.json())
+            .then(data => {
+                updateHealthStatus(data);
+            })
+            .catch(error => {
+                console.error('Error loading health:', error);
+            });
+    }
+    
+    function updateMetrics(data) {
+        document.getElementById('logs-per-second').textContent = 
+            data.logs.per_second.toFixed(2);
+        document.getElementById('total-logs').textContent = 
+            data.logs.total.toLocaleString();
+        document.getElementById('error-count').innerHTML = 
+            '<span class="error-badge">' + data.logs.recent_errors + '</span>';
+        document.getElementById('batch-current').textContent = 
+            data.batcher.current_batch_size;
+        document.getElementById('batch-processed').textContent = 
+            data.batcher.total_processed.toLocaleString();
+        document.getElementById('batch-flushes').textContent = 
+            data.batcher.flush_count;
+        document.getElementById('uptime').textContent = data.uptime;
+    }
+    
+    function updateHealthStatus(data) {
+        const indicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        
+        if (data.status === 'healthy') {
+            indicator.className = 'status-indicator healthy';
+            statusText.textContent = 'Healthy';
+        } else {
+            indicator.className = 'status-indicator error';
+            statusText.textContent = 'Unhealthy';
+        }
+    }
+    
+    let volumeChart = null;
+    let serviceChart = null;
+    let levelChart = null;
+    
+    function updateCharts(data) {
+        // Volume chart
+        const volumeCtx = document.getElementById('volume-chart').getContext('2d');
+        if (volumeChart) {
+            volumeChart.destroy();
+        }
+        
+        const timeLabels = data.time_series.map(p => {
+            const date = new Date(p.time);
+            return date.toLocaleTimeString();
+        });
+        const timeData = data.time_series.map(p => p.count);
+        
+        volumeChart = new Chart(volumeCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Logs',
+                    data: timeData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+        
+        // Service pie chart
+        const serviceCtx = document.getElementById('service-chart').getContext('2d');
+        if (serviceChart) {
+            serviceChart.destroy();
+        }
+        
+        const serviceLabels = Object.keys(data.logs.by_service);
+        const serviceData = Object.values(data.logs.by_service);
+        
+        serviceChart = new Chart(serviceCtx, {
+            type: 'pie',
+            data: {
+                labels: serviceLabels,
+                datasets: [{
+                    data: serviceData,
+                    backgroundColor: [
+                        'rgb(255, 99, 132)',
+                        'rgb(54, 162, 235)',
+                        'rgb(255, 205, 86)',
+                        'rgb(75, 192, 192)',
+                        'rgb(153, 102, 255)',
+                        'rgb(255, 159, 64)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+        
+        // Level pie chart
+        const levelCtx = document.getElementById('level-chart').getContext('2d');
+        if (levelChart) {
+            levelChart.destroy();
+        }
+        
+        const levelLabels = Object.keys(data.logs.by_level);
+        const levelData = Object.values(data.logs.by_level);
+        
+        levelChart = new Chart(levelCtx, {
+            type: 'pie',
+            data: {
+                labels: levelLabels,
+                datasets: [{
+                    data: levelData,
+                    backgroundColor: [
+                        'rgb(75, 192, 192)',  // INFO
+                        'rgb(255, 205, 86)', // WARN
+                        'rgb(255, 99, 132)', // ERROR
+                        'rgb(153, 102, 255)', // DEBUG
+                        'rgb(255, 159, 64)'  // Other
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{end}}
+

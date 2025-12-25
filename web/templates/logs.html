@@ -1,0 +1,125 @@
+{{template "base.html" .}}
+
+{{define "content"}}
+<div class="logs-page">
+    <h2>Recent Logs</h2>
+    
+    <div class="logs-controls">
+        <button onclick="refreshLogs()" class="btn btn-primary">Refresh</button>
+        <label>
+            Limit:
+            <select id="limit-select" onchange="loadLogs()">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+            </select>
+        </label>
+        <label>
+            Auto-refresh:
+            <input type="checkbox" id="auto-refresh" checked onchange="toggleAutoRefresh()">
+        </label>
+    </div>
+    
+    <div class="logs-table-container">
+        <table class="logs-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Service</th>
+                    <th>Level</th>
+                    <th>Message</th>
+                    <th>Metadata</th>
+                </tr>
+            </thead>
+            <tbody id="logs-tbody">
+                <tr>
+                    <td colspan="5" class="loading">Loading logs...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let autoRefreshInterval = null;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadLogs();
+        if (document.getElementById('auto-refresh').checked) {
+            startAutoRefresh();
+        }
+    });
+    
+    function loadLogs() {
+        const limit = document.getElementById('limit-select').value;
+        fetch(`/admin/logs/recent?limit=${limit}`)
+            .then(response => response.json())
+            .then(data => {
+                displayLogs(data.logs);
+            })
+            .catch(error => {
+                console.error('Error loading logs:', error);
+                document.getElementById('logs-tbody').innerHTML = 
+                    '<tr><td colspan="5" class="error">Error loading logs</td></tr>';
+            });
+    }
+    
+    function displayLogs(logs) {
+        const tbody = document.getElementById('logs-tbody');
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty">No logs found</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = logs.map(log => {
+            const timestamp = new Date(log.timestamp).toLocaleString();
+            const levelClass = log.level.toLowerCase();
+            const metadata = log.metadata ? JSON.stringify(log.metadata, null, 2) : '';
+            
+            return `
+                <tr class="log-row level-${levelClass}">
+                    <td>${timestamp}</td>
+                    <td>${escapeHtml(log.service)}</td>
+                    <td><span class="level-badge level-${levelClass}">${escapeHtml(log.level)}</span></td>
+                    <td>${escapeHtml(log.message)}</td>
+                    <td><pre class="metadata">${escapeHtml(metadata)}</pre></td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function refreshLogs() {
+        loadLogs();
+    }
+    
+    function toggleAutoRefresh() {
+        if (document.getElementById('auto-refresh').checked) {
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    }
+    
+    function startAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        autoRefreshInterval = setInterval(loadLogs, 5000);
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+    }
+</script>
+{{end}}
+

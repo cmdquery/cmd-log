@@ -51,7 +51,8 @@ type RateLimitConfig struct {
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	APIKeys []string `mapstructure:"api_keys"`
+	APIKeys     []string `mapstructure:"api_keys"`
+	AdminAPIKeys []string `mapstructure:"admin_api_keys"`
 }
 
 // Load reads configuration from environment variables and config files
@@ -132,6 +133,18 @@ func bindEnvVars() {
 			}
 		}
 		viper.Set("auth.api_keys", trimmedKeys)
+	}
+	
+	// Admin API keys from environment (comma-separated)
+	if adminKeys := os.Getenv("LOG_INGESTION_ADMIN_API_KEYS"); adminKeys != "" {
+		keys := strings.Split(adminKeys, ",")
+		var trimmedKeys []string
+		for _, key := range keys {
+			if trimmed := strings.TrimSpace(key); trimmed != "" {
+				trimmedKeys = append(trimmedKeys, trimmed)
+			}
+		}
+		viper.Set("auth.admin_api_keys", trimmedKeys)
 	}
 }
 
