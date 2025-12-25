@@ -1,4 +1,7 @@
-.PHONY: help build run test clean docker-up docker-down migrate
+.PHONY: help build run test clean docker-up docker-down docker-check migrate
+
+# Check if Docker daemon is running
+check_docker = @docker info >/dev/null 2>&1 || (echo "Error: Docker daemon is not running. Please start Docker Desktop and try again." && exit 1)
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -18,7 +21,11 @@ test: ## Run tests
 clean: ## Clean build artifacts
 	rm -rf bin/
 
+docker-check: ## Check if Docker daemon is running
+	@docker info >/dev/null 2>&1 && echo "✓ Docker daemon is running" || (echo "✗ Docker daemon is not running. Please start Docker Desktop." && exit 1)
+
 docker-up: ## Start Docker containers (TimescaleDB)
+	$(check_docker)
 	docker-compose up -d
 
 docker-down: ## Stop Docker containers
