@@ -1,37 +1,38 @@
 services:
-  timescaledb:
-    image: timescale/timescaledb:latest-pg16
-    container_name: log-ingestion-timescaledb
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME:-logs}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    volumes:
-      - timescaledb-data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"${POSTGRES_USER:-postgres}\""]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    networks:
-      - log-ingestion-network
-    # Security: run as non-root user (postgres user inside container)
-    user: "70:70"
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '1'
-          memory: 512M
+  # TimescaleDB service removed - using managed DigitalOcean database instead
+  # timescaledb:
+  #   image: timescale/timescaledb:latest-pg16
+  #   container_name: log-ingestion-timescaledb
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${DB_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #     POSTGRES_DB: ${DB_NAME:-logs}
+  #     POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+  #   ports:
+  #     - "${DB_PORT:-5432}:5432"
+  #   volumes:
+  #     - timescaledb-data:/var/lib/postgresql/data
+  #     - ./migrations:/docker-entrypoint-initdb.d:ro
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U \"${POSTGRES_USER:-postgres}\""]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 60s
+  #   networks:
+  #     - log-ingestion-network
+  #   # Security: run as non-root user (postgres user inside container)
+  #   user: "70:70"
+  #   # Resource limits
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '2'
+  #         memory: 2G
+  #       reservations:
+  #         cpus: '1'
+  #         memory: 512M
 
   app:
     build:
@@ -44,13 +45,13 @@ services:
       LOG_INGESTION_SERVER_HOST: ${SERVER_HOST:-0.0.0.0}
       LOG_INGESTION_SERVER_PORT: ${SERVER_PORT:-8080}
       
-      # Database configuration
-      LOG_INGESTION_DB_HOST: timescaledb
-      LOG_INGESTION_DB_PORT: ${DB_PORT:-5432}
-      LOG_INGESTION_DB_USER: ${DB_USER:-postgres}
+      # Database configuration (using managed DigitalOcean database)
+      LOG_INGESTION_DB_HOST: ${DB_HOST}
+      LOG_INGESTION_DB_PORT: ${DB_PORT:-25060}
+      LOG_INGESTION_DB_USER: ${DB_USER}
       LOG_INGESTION_DB_PASSWORD: ${DB_PASSWORD}
       LOG_INGESTION_DB_NAME: ${DB_NAME:-logs}
-      LOG_INGESTION_DB_SSLMODE: ${DB_SSLMODE:-prefer}
+      LOG_INGESTION_DB_SSLMODE: ${DB_SSLMODE:-require}
       
       # Batch configuration
       LOG_INGESTION_BATCH_SIZE: ${BATCH_SIZE:-1000}
@@ -65,9 +66,7 @@ services:
       LOG_INGESTION_API_KEYS: ${API_KEYS}
     ports:
       - "${SERVER_PORT:-8080}:8080"
-    depends_on:
-      timescaledb:
-        condition: service_healthy
+    # Removed depends_on - no longer using local database container
     networks:
       - log-ingestion-network
     healthcheck:
@@ -92,9 +91,10 @@ services:
         max-size: "10m"
         max-file: "3"
 
-volumes:
-  timescaledb-data:
-    driver: local
+# Removed volumes section - no longer using local database container
+# volumes:
+#   timescaledb-data:
+#     driver: local
 
 networks:
   log-ingestion-network:

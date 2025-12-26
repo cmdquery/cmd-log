@@ -29,6 +29,82 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
+# Function to check if database password from .env matches existing database
+check_db_password_match() {
+    local server_user="$1"
+    local server_ip="$2"
+    local app_dir="$3"
+    local compose_cmd="$4"
+    
+    # Check if database volume exists
+    local volume_exists=$(ssh "${server_user}@${server_ip}" "docker volume ls -q | grep -q 'cmd-log_timescaledb-data' && echo 'yes' || echo 'no'")
+    
+    if [ "$volume_exists" = "no" ]; then
+        # No existing volume, password will be set on first init
+        return 0
+    fi
+    
+    # Try to read DB_PASSWORD from .env file on server
+    local db_password=$(ssh "${server_user}@${server_ip}" "grep '^DB_PASSWORD=' ${app_dir}/.env 2>/dev/null | cut -d'=' -f2- | tr -d '\"' | tr -d \"'\"")
+    
+    if [ -z "$db_password" ]; then
+        # Can't read password, assume mismatch
+        return 1
+    fi
+    
+    # Check if database container is running
+    local db_running=$(ssh "${server_user}@${server_ip}" "cd ${app_dir} && ${compose_cmd} -f docker-compose.prod.yml ps timescaledb 2>/dev/null | grep -q 'Up' && echo 'yes' || echo 'no'")
+    
+    if [ "$db_running" = "yes" ]; then
+        # Try to connect with the password from .env
+        if ssh "${server_user}@${server_ip}" "cd ${app_dir} && PGPASSWORD='${db_password}' ${compose_cmd} -f docker-compose.prod.yml exec -T timescaledb psql -U postgres -d logs -c 'SELECT 1;' >/dev/null 2>&1"; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    
+    # Database not running, can't check - assume mismatch to be safe
+    return 1
+}
+
+# Function to reset database volume
+reset_db_volume() {
+    local server_user="$1"
+    local server_ip="$2"
+    local app_dir="$3"
+    local compose_cmd="$4"
+    
+    print_warning "Resetting database volume - all data will be lost!"
+    
+    # Stop containers
+    ssh "${server_user}@${server_ip}" "cd ${app_dir} && ${compose_cmd} -f docker-compose.prod.yml down -v" || true
+    
+    # Remove volume explicitly
+    ssh "${server_user}@${server_ip}" "docker volume rm cmd-log_timescaledb-data 2>/dev/null" || true
+    
+    print_success "Database volume reset"
+}
+
+# Function to update database password (only works if we can connect with old password)
+update_db_password() {
+    local server_user="$1"
+    local server_ip="$2"
+    local app_dir="$3"
+    local compose_cmd="$4"
+    local new_password="$5"
+    
+    print_info "Attempting to update database password..."
+    
+    # This is tricky - we need the old password to change it
+    # For now, we'll just note that this requires manual intervention
+    print_warning "Automatic password update requires the old password"
+    print_info "To update manually, connect to the database and run:"
+    print_info "  ALTER USER postgres WITH PASSWORD '${new_password}';"
+    
+    return 1
+}
+
 # Get the directory where the script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -51,6 +127,15 @@ APP_DIR="/opt/cmd-log"
 DEPLOY_PORT="${DEPLOY_PORT:-8080}"
 DOMAIN="${DOMAIN:-}"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
+RESET_DB="${RESET_DB:-false}"
+
+# Managed database configuration (from .deploy-config)
+DB_HOST="${DB_HOST:-}"
+DB_PORT="${DB_PORT:-25060}"
+DB_USER="${DB_USER:-}"
+DB_PASSWORD="${DB_PASSWORD:-}"
+DB_NAME="${DB_NAME:-logs}"
+DB_SSLMODE="${DB_SSLMODE:-require}"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -70,6 +155,10 @@ while [[ $# -gt 0 ]]; do
         --domain)
             DOMAIN="$2"
             shift 2
+            ;;
+        --reset-db)
+            RESET_DB="true"
+            shift
             ;;
         --help)
             echo "Usage: $0 [--ip IP_ADDRESS] [--user USERNAME] [--port PORT] [--domain DOMAIN]"
@@ -133,6 +222,22 @@ if ! ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "${DROPLET_USER}@${DROP
     exit 1
 fi
 print_success "SSH connection successful"
+
+# Validate managed database configuration
+print_info "Validating managed database configuration..."
+if [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
+    print_error "Managed database configuration is incomplete!"
+    print_error "Please set DB_HOST, DB_USER, and DB_PASSWORD in deploy/.deploy-config"
+    print_info "Example:"
+    print_info "  DB_HOST=\"your-db-host.db.ondigitalocean.com\""
+    print_info "  DB_PORT=\"25060\""
+    print_info "  DB_USER=\"your-db-user\""
+    print_info "  DB_PASSWORD=\"your-db-password\""
+    print_info "  DB_NAME=\"logs\""
+    print_info "  DB_SSLMODE=\"require\""
+    exit 1
+fi
+print_success "Managed database configuration validated"
 
 # Check if rsync is available (preferred) or use scp
 USE_RSYNC=false
@@ -206,9 +311,8 @@ else
 fi
 print_success "Files transferred"
 
-# Generate secure environment variables
+# Generate secure environment variables (API keys only - DB config comes from .deploy-config)
 print_info "Generating secure environment variables..."
-DB_PASSWORD=$(openssl rand -base64 32)
 API_KEY_1=$(openssl rand -hex 32)
 API_KEY_2=$(openssl rand -hex 32)
 API_KEYS="${API_KEY_1},${API_KEY_2}"
@@ -228,14 +332,15 @@ if [ "$ENV_EXISTS" = "yes" ]; then
 fi
 
 if [ "$ENV_EXISTS" = "no" ]; then
-    # Create .env file
+    # Create .env file with managed database configuration
     ssh "${DROPLET_USER}@${DROPLET_IP}" "cat > ${APP_DIR}/.env <<EOF
-# Database Configuration
+# Database Configuration (Managed DigitalOcean Database)
+DB_HOST=${DB_HOST}
+DB_PORT=${DB_PORT}
+DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASSWORD}
-DB_USER=postgres
-DB_NAME=logs
-DB_PORT=5432
-DB_SSLMODE=prefer
+DB_NAME=${DB_NAME}
+DB_SSLMODE=${DB_SSLMODE}
 
 # Server Configuration
 SERVER_HOST=0.0.0.0
@@ -278,32 +383,28 @@ print_info "Starting services..."
 ssh "${DROPLET_USER}@${DROPLET_IP}" "cd ${APP_DIR} && ${DOCKER_COMPOSE_CMD} -f docker-compose.prod.yml up -d"
 print_success "Services started"
 
-# Wait for database to be ready
-print_info "Waiting for database to be ready..."
-MAX_WAIT=60
-WAIT_COUNT=0
-while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-    if ssh "${DROPLET_USER}@${DROPLET_IP}" "cd ${APP_DIR} && ${DOCKER_COMPOSE_CMD} -f docker-compose.prod.yml exec -T timescaledb pg_isready -U postgres" >/dev/null 2>&1; then
-        print_success "Database is ready"
-        break
-    fi
-    WAIT_COUNT=$((WAIT_COUNT + 2))
-    if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
-        echo -n "."
-        sleep 2
-    fi
-done
-
-if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
-    echo ""
-    print_error "Database did not become ready within ${MAX_WAIT} seconds"
-    exit 1
+# Test managed database connection
+print_info "Testing managed database connection..."
+if ssh "${DROPLET_USER}@${DROPLET_IP}" "PGPASSWORD='${DB_PASSWORD}' psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;' >/dev/null 2>&1"; then
+    print_success "Managed database connection successful"
+else
+    print_warning "Could not verify managed database connection (psql may not be installed on server)"
+    print_info "Database connection will be tested when application starts"
 fi
 
-# Run migrations
-print_info "Running database migrations..."
-ssh "${DROPLET_USER}@${DROPLET_IP}" "cd ${APP_DIR} && ${DOCKER_COMPOSE_CMD} -f docker-compose.prod.yml exec -T timescaledb psql -U postgres -d logs -f /docker-entrypoint-initdb.d/001_create_logs_table.sql" || true
-ssh "${DROPLET_USER}@${DROPLET_IP}" "cd ${APP_DIR} && ${DOCKER_COMPOSE_CMD} -f docker-compose.prod.yml exec -T timescaledb psql -U postgres -d logs -f /docker-entrypoint-initdb.d/002_create_api_keys_table.sql" || true
+# Run migrations against managed database
+print_info "Running database migrations against managed database..."
+# Check if psql is available on the server, if not, we'll need to run migrations from within a container
+if ssh "${DROPLET_USER}@${DROPLET_IP}" "command -v psql >/dev/null 2>&1"; then
+    # Use psql directly on server
+    ssh "${DROPLET_USER}@${DROPLET_IP}" "PGPASSWORD='${DB_PASSWORD}' psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f ${APP_DIR}/migrations/001_create_logs_table.sql" || true
+    ssh "${DROPLET_USER}@${DROPLET_IP}" "PGPASSWORD='${DB_PASSWORD}' psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f ${APP_DIR}/migrations/002_create_api_keys_table.sql" || true
+else
+    # Use a temporary postgres container to run migrations
+    print_info "psql not found on server, using temporary postgres container for migrations..."
+    ssh "${DROPLET_USER}@${DROPLET_IP}" "docker run --rm -v ${APP_DIR}/migrations:/migrations -e PGPASSWORD='${DB_PASSWORD}' postgres:16-alpine psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f /migrations/001_create_logs_table.sql" || true
+    ssh "${DROPLET_USER}@${DROPLET_IP}" "docker run --rm -v ${APP_DIR}/migrations:/migrations -e PGPASSWORD='${DB_PASSWORD}' postgres:16-alpine psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f /migrations/002_create_api_keys_table.sql" || true
+fi
 print_success "Migrations completed"
 
 # Configure firewall
