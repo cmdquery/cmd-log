@@ -2,10 +2,8 @@ package storage
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log-ingestion-service/pkg/models"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -382,12 +380,6 @@ func (r *Repository) DeleteAPIKey(ctx context.Context, id int64) error {
 
 // GetAPIKeyByValue checks if an API key exists and is active
 func (r *Repository) GetAPIKeyByValue(ctx context.Context, key string) (bool, error) {
-	// #region agent log
-	if f, _ := os.OpenFile("/Users/moiz/Code/cmd-log/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); f != nil {
-		json.NewEncoder(f).Encode(map[string]interface{}{"sessionId": "debug-session", "runId": "run1", "hypothesisId": "A,B,D,E", "location": "repository.go:382", "message": "GetAPIKeyByValue entry", "data": map[string]interface{}{"key": key, "keyLength": len(key), "keyBytes": []byte(key)}, "timestamp": time.Now().UnixMilli()})
-		f.Close()
-	}
-	// #endregion
 	var exists bool
 	query := `
 		SELECT EXISTS(
@@ -397,17 +389,6 @@ func (r *Repository) GetAPIKeyByValue(ctx context.Context, key string) (bool, er
 	`
 	
 	err := r.pool.QueryRow(ctx, query, key).Scan(&exists)
-	// #region agent log
-	if f, _ := os.OpenFile("/Users/moiz/Code/cmd-log/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); f != nil {
-		allKeys, _ := r.GetAllActiveAPIKeys(ctx)
-		errStr := ""
-		if err != nil {
-			errStr = err.Error()
-		}
-		json.NewEncoder(f).Encode(map[string]interface{}{"sessionId": "debug-session", "runId": "run1", "hypothesisId": "A,B,D,E", "location": "repository.go:391", "message": "Database query result", "data": map[string]interface{}{"exists": exists, "error": errStr, "allActiveKeys": allKeys}, "timestamp": time.Now().UnixMilli()})
-		f.Close()
-	}
-	// #endregion
 	if err != nil {
 		return false, fmt.Errorf("error checking API key: %w", err)
 	}
