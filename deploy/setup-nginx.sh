@@ -76,12 +76,12 @@ else
     print_success "Certbot is already installed"
 fi
 
-# Create nginx configuration
+# Create nginx configuration (HTTP only initially - certbot will add HTTPS)
 print_info "Creating nginx configuration..."
 NGINX_CONFIG="/etc/nginx/sites-available/cmd-log"
 
 cat > "${NGINX_CONFIG}" <<EOF
-# HTTP server - redirect to HTTPS
+# HTTP server - certbot will add HTTPS server block automatically
 server {
     listen 80;
     listen [::]:80;
@@ -92,39 +92,7 @@ server {
         root /var/www/html;
     }
 
-    # Redirect all other traffic to HTTPS
-    location / {
-        return 301 https://\$server_name\$request_uri;
-    }
-}
-
-# HTTPS server - will be updated by certbot
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${DOMAIN} www.${DOMAIN};
-
-    # SSL configuration (will be updated by certbot)
-    # ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
-    
-    # SSL settings
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-
-    # Increase body size for log ingestion
-    client_max_body_size 10M;
-
-    # Proxy to Go application
+    # Proxy to Go application (will redirect to HTTPS after certbot setup)
     location / {
         proxy_pass http://localhost:8080;
         proxy_http_version 1.1;
@@ -166,6 +134,82 @@ else
     exit 1
 fi
 
+# Verify application is running and accessible before configuring nginx
+print_info "Verifying application is running..."
+APP_RUNNING=false
+MAX_WAIT=30
+WAIT_COUNT=0
+
+# Check for curl or wget
+if command -v curl >/dev/null 2>&1; then
+    HEALTH_CHECK_CMD="curl -sf http://localhost:8080/health"
+elif command -v wget >/dev/null 2>&1; then
+    HEALTH_CHECK_CMD="wget --quiet --spider http://localhost:8080/health"
+else
+    print_warning "curl or wget not found, skipping health check verification"
+    HEALTH_CHECK_CMD=""
+fi
+
+# Detect docker compose command
+DOCKER_COMPOSE_CMD=$(command -v docker-compose >/dev/null 2>&1 && echo 'docker-compose' || (docker compose version >/dev/null 2>&1 && echo 'docker compose' || echo 'none'))
+
+# Find app directory (common locations)
+APP_DIR=""
+for dir in /opt/cmd-log /var/www/cmd-log /home/*/cmd-log; do
+    if [ -d "$dir" ] && [ -f "$dir/docker-compose.prod.yml" ]; then
+        APP_DIR="$dir"
+        break
+    fi
+done
+
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+    # Check if Docker container is running
+    if docker ps --format '{{.Names}}' | grep -q '^log-ingestion-app$'; then
+        # Check if port 8080 is accessible (if we have curl/wget)
+        if [ -n "$HEALTH_CHECK_CMD" ]; then
+            if eval "$HEALTH_CHECK_CMD" >/dev/null 2>&1; then
+                APP_RUNNING=true
+                print_success "Application is running and responding on port 8080"
+                break
+            else
+                print_warning "Container is running but app not responding on port 8080 (attempt $((WAIT_COUNT + 1))/$MAX_WAIT)"
+            fi
+        else
+            # If no curl/wget, just check if container is running
+            APP_RUNNING=true
+            print_success "Application container is running (health check skipped)"
+            break
+        fi
+    else
+        print_warning "Application container is not running (attempt $((WAIT_COUNT + 1))/$MAX_WAIT)"
+    fi
+    WAIT_COUNT=$((WAIT_COUNT + 2))
+    if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
+        sleep 2
+    fi
+done
+
+if [ "$APP_RUNNING" = false ]; then
+    print_error "Application is not running or not accessible on port 8080"
+    print_info "Checking Docker container status..."
+    docker ps -a | grep log-ingestion || echo "No log-ingestion containers found"
+    
+    if [ -n "$APP_DIR" ] && [ "$DOCKER_COMPOSE_CMD" != "none" ]; then
+        print_info "Checking application logs from $APP_DIR..."
+        (cd "$APP_DIR" && $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs app --tail 50 2>&1) || echo "Could not retrieve logs"
+    else
+        print_info "Checking application logs..."
+        docker logs log-ingestion-app --tail 50 2>&1 || echo "Could not retrieve logs"
+    fi
+    
+    print_warning "Please ensure the application is running before setting up nginx"
+    if [ -n "$APP_DIR" ] && [ "$DOCKER_COMPOSE_CMD" != "none" ]; then
+        print_warning "You can check status with: cd $APP_DIR && $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml ps"
+        print_warning "You can view logs with: cd $APP_DIR && $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs app"
+    fi
+    exit 1
+fi
+
 # Reload nginx
 print_info "Reloading nginx..."
 systemctl reload nginx || systemctl start nginx
@@ -180,9 +224,18 @@ if certbot --nginx -d "${DOMAIN}" -d "www.${DOMAIN}" \
     --non-interactive \
     --agree-tos \
     --email "${EMAIL}" \
-    --redirect \
-    --quiet; then
+    --redirect; then
     print_success "SSL certificate installed successfully"
+    
+    # Test nginx configuration after certbot modifications
+    print_info "Testing nginx configuration after SSL setup..."
+    if nginx -t >/dev/null 2>&1; then
+        print_success "Nginx configuration is valid"
+    else
+        print_error "Nginx configuration test failed after certbot setup"
+        nginx -t
+        exit 1
+    fi
 else
     print_error "Failed to obtain SSL certificate"
     print_warning "Please ensure:"
@@ -217,6 +270,19 @@ fi
 print_info "Final nginx reload..."
 systemctl reload nginx
 print_success "Nginx reloaded with SSL configuration"
+
+# Verify proxy is working after SSL setup
+if [ -n "$HEALTH_CHECK_CMD" ]; then
+    print_info "Verifying proxy connection to application..."
+    sleep 2  # Give nginx a moment to reload
+    if eval "$HEALTH_CHECK_CMD" >/dev/null 2>&1; then
+        print_success "Application is accessible on port 8080"
+    else
+        print_warning "Application health check failed on port 8080"
+        print_info "This may indicate the application container is not running"
+        print_info "Check nginx error logs: tail -f /var/log/nginx/error.log"
+    fi
+fi
 
 echo ""
 print_success "Nginx reverse proxy setup completed!"
