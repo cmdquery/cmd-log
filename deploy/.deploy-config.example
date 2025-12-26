@@ -1,0 +1,24 @@
+# Deployment Configuration Example
+# Copy this file to .deploy-config and fill in your values:
+#   cp deploy/.deploy-config.example deploy/.deploy-config
+#
+# These values are used as defaults and can be overridden with command-line flags
+# or environment variables. Command-line flags have the highest priority.
+
+# DigitalOcean droplet IP address or hostname
+DROPLET_IP="your-server-ip"
+
+# SSH user (default: root)
+DROPLET_USER="root"
+
+# Application port (default: 8080)
+DEPLOY_PORT="8080"
+
+# Domain name for nginx reverse proxy with SSL (optional)
+# Leave empty if you don't want to set up nginx automatically
+DOMAIN="yourdomain.com"
+
+# Email address for Let's Encrypt SSL certificates (optional)
+# If not set, you'll be prompted during deployment
+CERTBOT_EMAIL="your-email@example.com"
+

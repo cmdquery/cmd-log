@@ -1,0 +1,20 @@
+# Deployment configuration (contains server-specific info)
+deploy/.deploy-config
+
+# Environment files
+.env
+.env.*
+
+# Build artifacts
+bin/
+*.log
+
+# IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Node modules
+node_modules/
+web/node_modules/
+

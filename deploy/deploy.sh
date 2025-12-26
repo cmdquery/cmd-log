@@ -29,12 +29,28 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
-# Default values
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Load configuration file if it exists (before setting defaults)
+# This allows config file values to be used as defaults, which can be overridden by flags
+CONFIG_FILE="${SCRIPT_DIR}/.deploy-config"
+if [ -f "$CONFIG_FILE" ]; then
+    # Source the config file to load default values
+    # Temporarily disable exit on error in case config file has issues
+    set +e
+    source "$CONFIG_FILE" 2>/dev/null
+    set -e
+fi
+
+# Default values (can be overridden by config file, environment variables, or command-line flags)
 DROPLET_IP="${DROPLET_IP:-}"
 DROPLET_USER="${DROPLET_USER:-root}"
 APP_DIR="/opt/cmd-log"
 DEPLOY_PORT="${DEPLOY_PORT:-8080}"
 DOMAIN="${DOMAIN:-}"
+CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -65,10 +81,20 @@ while [[ $# -gt 0 ]]; do
             echo "  --domain DOMAIN    Domain name for nginx reverse proxy with SSL (e.g., cmdlog.tech)"
             echo "  --help             Show this help message"
             echo ""
+            echo "Configuration:"
+            echo "  Default values can be set in deploy/.deploy-config file"
+            echo "  Copy deploy/.deploy-config.example to deploy/.deploy-config and edit"
+            echo ""
             echo "Environment variables:"
             echo "  DROPLET_IP         DigitalOcean droplet IP address"
             echo "  DROPLET_USER       SSH user (default: root)"
             echo "  DOMAIN             Domain name for nginx setup"
+            echo ""
+            echo "Precedence (highest to lowest):"
+            echo "  1. Command-line flags"
+            echo "  2. Environment variables"
+            echo "  3. Config file (deploy/.deploy-config)"
+            echo "  4. Script defaults"
             exit 0
             ;;
         *)
@@ -113,10 +139,6 @@ USE_RSYNC=false
 if command -v rsync >/dev/null 2>&1; then
     USE_RSYNC=true
 fi
-
-# Get the directory where the script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Check if Docker is installed on remote server
 print_info "Checking Docker installation on remote server..."
