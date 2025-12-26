@@ -1,4 +1,23 @@
-# Build stage
+# Frontend build stage
+FROM node:alpine AS frontend-builder
+
+# Set working directory
+WORKDIR /build
+
+# Copy package files
+COPY web/package.json web/package-lock.json ./web/
+
+# Install dependencies
+WORKDIR /build/web
+RUN npm ci
+
+# Copy web source files
+COPY web/ .
+
+# Build the Vue app
+RUN npm run build
+
+# Go build stage
 FROM golang:1.21-alpine AS builder
 
 # Install build dependencies
@@ -35,11 +54,11 @@ RUN addgroup -g 1000 appuser && \
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binary from Go builder
 COPY --from=builder /build/server .
 
-# Copy web directory (templates and static files)
-COPY --from=builder /build/web ./web
+# Copy built frontend from Node.js builder
+COPY --from=frontend-builder /build/web/dist ./web/dist
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app
