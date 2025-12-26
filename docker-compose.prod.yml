@@ -62,8 +62,11 @@ services:
       LOG_INGESTION_RATELIMIT_DEFAULT_RPS: ${RATELIMIT_DEFAULT_RPS:-100}
       LOG_INGESTION_RATELIMIT_BURST: ${RATELIMIT_BURST:-200}
       
-      # API keys (comma-separated)
+      # API keys (comma-separated) - for regular log ingestion endpoints (stored in database)
       LOG_INGESTION_API_KEYS: ${API_KEYS}
+      
+      # Admin API keys (comma-separated) - for admin endpoints
+      LOG_INGESTION_ADMIN_API_KEYS: ${ADMIN_API_KEYS:-${API_KEYS}}
     ports:
       - "${SERVER_PORT:-8080}:8080"
     # Removed depends_on - no longer using local database container

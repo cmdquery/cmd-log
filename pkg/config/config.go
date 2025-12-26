@@ -123,7 +123,12 @@ func bindEnvVars() {
 	viper.BindEnv("ratelimit.burst", "LOG_INGESTION_RATELIMIT_BURST")
 	
 	// Admin API keys from environment (comma-separated)
-	if adminKeys := os.Getenv("LOG_INGESTION_ADMIN_API_KEYS"); adminKeys != "" {
+	// Check LOG_INGESTION_ADMIN_API_KEYS first, fallback to LOG_INGESTION_API_KEYS
+	adminKeys := os.Getenv("LOG_INGESTION_ADMIN_API_KEYS")
+	if adminKeys == "" {
+		adminKeys = os.Getenv("LOG_INGESTION_API_KEYS")
+	}
+	if adminKeys != "" {
 		keys := strings.Split(adminKeys, ",")
 		var trimmedKeys []string
 		for _, key := range keys {

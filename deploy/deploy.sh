@@ -311,6 +311,73 @@ else
 fi
 print_success "Files transferred"
 
+# Function to update database configuration in existing .env file
+update_db_config_in_env() {
+    local server_user="$1"
+    local server_ip="$2"
+    local app_dir="$3"
+    local db_host="$4"
+    local db_port="$5"
+    local db_user="$6"
+    local db_password="$7"
+    local db_name="$8"
+    local db_sslmode="$9"
+    
+    print_info "Updating database configuration in existing .env file..."
+    
+    # Use a temporary file to update .env safely
+    ssh "${server_user}@${server_ip}" "cat > /tmp/update_env.sh <<'ENVUPDATE'
+#!/bin/bash
+ENV_FILE=\"${app_dir}/.env\"
+TEMP_FILE=\"\${ENV_FILE}.tmp\"
+
+# Read existing .env and update database variables
+while IFS= read -r line || [ -n \"\$line\" ]; do
+    if [[ \"\$line\" =~ ^DB_HOST= ]]; then
+        echo \"DB_HOST=${db_host}\"
+    elif [[ \"\$line\" =~ ^DB_PORT= ]]; then
+        echo \"DB_PORT=${db_port}\"
+    elif [[ \"\$line\" =~ ^DB_USER= ]]; then
+        echo \"DB_USER=${db_user}\"
+    elif [[ \"\$line\" =~ ^DB_PASSWORD= ]]; then
+        echo \"DB_PASSWORD=${db_password}\"
+    elif [[ \"\$line\" =~ ^DB_NAME= ]]; then
+        echo \"DB_NAME=${db_name}\"
+    elif [[ \"\$line\" =~ ^DB_SSLMODE= ]]; then
+        echo \"DB_SSLMODE=${db_sslmode}\"
+    else
+        echo \"\$line\"
+    fi
+done < \"\${ENV_FILE}\" > \"\${TEMP_FILE}\"
+
+# Check if DB variables exist, if not add them
+if ! grep -q \"^DB_HOST=\" \"\${TEMP_FILE}\"; then
+    echo \"DB_HOST=${db_host}\" >> \"\${TEMP_FILE}\"
+fi
+if ! grep -q \"^DB_PORT=\" \"\${TEMP_FILE}\"; then
+    echo \"DB_PORT=${db_port}\" >> \"\${TEMP_FILE}\"
+fi
+if ! grep -q \"^DB_USER=\" \"\${TEMP_FILE}\"; then
+    echo \"DB_USER=${db_user}\" >> \"\${TEMP_FILE}\"
+fi
+if ! grep -q \"^DB_PASSWORD=\" \"\${TEMP_FILE}\"; then
+    echo \"DB_PASSWORD=${db_password}\" >> \"\${TEMP_FILE}\"
+fi
+if ! grep -q \"^DB_NAME=\" \"\${TEMP_FILE}\"; then
+    echo \"DB_NAME=${db_name}\" >> \"\${TEMP_FILE}\"
+fi
+if ! grep -q \"^DB_SSLMODE=\" \"\${TEMP_FILE}\"; then
+    echo \"DB_SSLMODE=${db_sslmode}\" >> \"\${TEMP_FILE}\"
+fi
+
+mv \"\${TEMP_FILE}\" \"\${ENV_FILE}\"
+chmod 600 \"\${ENV_FILE}\"
+ENVUPDATE
+chmod +x /tmp/update_env.sh && /tmp/update_env.sh && rm -f /tmp/update_env.sh"
+    
+    print_success "Database configuration updated in .env file"
+}
+
 # Generate secure environment variables (API keys only - DB config comes from .deploy-config)
 print_info "Generating secure environment variables..."
 API_KEY_1=$(openssl rand -hex 32)
@@ -328,6 +395,9 @@ if [ "$ENV_EXISTS" = "yes" ]; then
         ENV_EXISTS="no"
     else
         print_info "Keeping existing .env file"
+        # Update database configuration even when keeping existing file
+        update_db_config_in_env "${DROPLET_USER}" "${DROPLET_IP}" "${APP_DIR}" \
+            "${DB_HOST}" "${DB_PORT}" "${DB_USER}" "${DB_PASSWORD}" "${DB_NAME}" "${DB_SSLMODE}"
     fi
 fi
 
@@ -353,8 +423,11 @@ RATELIMIT_ENABLED=true
 RATELIMIT_DEFAULT_RPS=100
 RATELIMIT_BURST=200
 
-# API Keys (comma-separated)
+# API Keys (comma-separated) - for regular log ingestion endpoints (stored in database)
 API_KEYS=${API_KEYS}
+
+# Admin API Keys (comma-separated) - for admin endpoints
+ADMIN_API_KEYS=${API_KEYS}
 EOF
 "
     ssh "${DROPLET_USER}@${DROPLET_IP}" "chmod 600 ${APP_DIR}/.env"
