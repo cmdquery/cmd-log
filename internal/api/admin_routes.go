@@ -27,6 +27,9 @@ func SetupAdminRoutes(router *gin.Engine, adminHandler *AdminHandler, cfg *confi
 		// Recent logs JSON endpoint
 		admin.GET("/logs/recent", adminHandler.RecentLogs)
 		
+		// Get log by ID endpoint
+		admin.GET("/logs/:id", adminHandler.GetLogByID)
+		
 		// Statistics endpoint
 		admin.GET("/stats", adminHandler.Stats)
 		

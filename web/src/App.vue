@@ -2,7 +2,10 @@
   <div id="app">
     <nav class="navbar" v-if="showNav">
       <div class="nav-container">
-        <h1 class="nav-title">Log Ingestion Admin</h1>
+        <div class="nav-brand">
+          <img src="/logo.png" alt="Logo" class="nav-logo" />
+          <h1 class="nav-title">cmd log</h1>
+        </div>
         <ul class="nav-menu">
           <li><router-link to="/admin">Dashboard</router-link></li>
           <li><router-link to="/admin/logs">Logs</router-link></li>

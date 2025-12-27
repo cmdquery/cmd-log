@@ -13,39 +13,34 @@ function spaFallback() {
           return next()
         }
         
-        // Skip source files and static assets
+        // Skip Vite internal routes, source files, and static assets
         if (req.url.startsWith('/src/') || 
-            req.url.startsWith('/api') || 
             req.url.startsWith('/assets') || 
             req.url.includes('.')) {
           return next()
         }
         
-        // List of API endpoints that should be proxied (not served as SPA)
-        const apiEndpoints = [
-          '/admin/login',
-          '/admin/health',
-          '/admin/metrics',
-          '/admin/logs/recent',
-          '/admin/stats',
-          '/admin/api/keys'
-        ]
-        
-        // Check if this is an API endpoint
-        const isApiEndpoint = apiEndpoints.some(endpoint => {
-          if (req.method !== 'GET') {
-            // POST, DELETE, PUT, etc. to API endpoints should be proxied
-            return req.url.startsWith(endpoint)
-          }
-          // For GET requests, only proxy if it's explicitly a JSON request
-          // (browser navigation will have text/html in Accept header)
-          return req.url.startsWith(endpoint) && 
-                 req.headers.accept?.includes('application/json')
-        })
-        
-        // If it's an API endpoint, let the proxy handle it
-        if (isApiEndpoint) {
+        // For API routes (/api/*), always proxy
+        if (req.url.startsWith('/api/')) {
           return next()
+        }
+        
+        // For admin routes (/admin/*), check if it's an API call
+        if (req.url.startsWith('/admin/')) {
+          // Non-GET requests to /admin/* should always be proxied
+          if (req.method !== 'GET') {
+            return next()
+          }
+          
+          // For GET requests, check if it's an API call (wants JSON)
+          // vs browser navigation (wants HTML)
+          const wantsJSON = req.headers.accept?.includes('application/json')
+          if (wantsJSON) {
+            return next()  // Let proxy handle API calls
+          }
+          
+          // Browser navigation to /admin/* routes should serve SPA
+          // (the Vue router will handle the routing)
         }
         
         // For all other routes (frontend routes), serve index.html
@@ -89,6 +84,10 @@ export default defineConfig({
         changeOrigin: true
       },
       '/admin/logs/recent': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/admin/logs': {
         target: 'http://localhost:8080',
         changeOrigin: true
       },

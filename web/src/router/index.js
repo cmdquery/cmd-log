@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { getApiKey } from '../services/api'
 import Dashboard from '../views/Dashboard.vue'
 import LogsViewer from '../views/LogsViewer.vue'
+import LogDetail from '../views/LogDetail.vue'
 import HealthStatus from '../views/HealthStatus.vue'
 import APIKeys from '../views/APIKeys.vue'
 import Login from '../views/Login.vue'
@@ -26,6 +27,12 @@ const routes = [
     path: '/admin/logs',
     name: 'Logs',
     component: LogsViewer,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/logs/:id',
+    name: 'LogDetail',
+    component: LogDetail,
     meta: { requiresAuth: true }
   },
   {

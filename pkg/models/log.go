@@ -4,6 +4,7 @@ import "time"
 
 // LogEntry represents a single log entry
 type LogEntry struct {
+	ID        int64                  `json:"id"`
 	Timestamp time.Time              `json:"timestamp"`
 	Service   string                 `json:"service"`
 	Level     string                 `json:"level"`

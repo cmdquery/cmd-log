@@ -51,9 +51,14 @@ func AdminAuth(cfg *config.AuthConfig) gin.HandlerFunc {
 			}
 		}
 		
+		// Check if request wants JSON (prioritize JSON for API endpoints)
+		acceptHeader := c.GetHeader("Accept")
+		wantsJSON := strings.Contains(acceptHeader, "application/json")
+		wantsHTML := !wantsJSON && (acceptHeader == "text/html" || strings.Contains(acceptHeader, "text/html"))
+		
 		if apiKey == "" {
 			// For web interface, redirect to login or show error page
-			if c.GetHeader("Accept") == "text/html" || strings.Contains(c.GetHeader("Accept"), "text/html") {
+			if wantsHTML {
 				c.HTML(http.StatusUnauthorized, "error.html", gin.H{
 					"error": "Admin API key is required",
 					"message": "Please provide an admin API key via X-API-Key header, Authorization header, ?api_key= query parameter, or login at /admin/login",
@@ -77,7 +82,7 @@ func AdminAuth(cfg *config.AuthConfig) gin.HandlerFunc {
 		}
 		
 		if !valid {
-			if c.GetHeader("Accept") == "text/html" || strings.Contains(c.GetHeader("Accept"), "text/html") {
+			if wantsHTML {
 				c.HTML(http.StatusForbidden, "error.html", gin.H{
 					"error": "Invalid admin API key",
 					"message": "The provided admin API key is not valid",

@@ -179,7 +179,7 @@ func (r *Repository) GetLogStats(ctx context.Context, timeRange time.Duration) (
 // GetRecentLogs returns recent log entries
 func (r *Repository) GetRecentLogs(ctx context.Context, limit int) ([]models.LogEntry, error) {
 	query := `
-		SELECT timestamp, service, level, message, metadata
+		SELECT id, timestamp, service, level, message, metadata
 		FROM logs
 		ORDER BY timestamp DESC
 		LIMIT $1
@@ -195,7 +195,7 @@ func (r *Repository) GetRecentLogs(ctx context.Context, limit int) ([]models.Log
 	for rows.Next() {
 		var log models.LogEntry
 		var metadata map[string]interface{}
-		err := rows.Scan(&log.Timestamp, &log.Service, &log.Level, &log.Message, &metadata)
+		err := rows.Scan(&log.ID, &log.Timestamp, &log.Service, &log.Level, &log.Message, &metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -210,7 +210,7 @@ func (r *Repository) GetRecentLogs(ctx context.Context, limit int) ([]models.Log
 func (r *Repository) GetErrorLogs(ctx context.Context, limit int, timeRange time.Duration) ([]models.LogEntry, error) {
 	since := time.Now().Add(-timeRange)
 	query := `
-		SELECT timestamp, service, level, message, metadata
+		SELECT id, timestamp, service, level, message, metadata
 		FROM logs
 		WHERE timestamp >= $1
 		AND level IN ('ERROR', 'FATAL', 'CRITICAL')
@@ -228,7 +228,7 @@ func (r *Repository) GetErrorLogs(ctx context.Context, limit int, timeRange time
 	for rows.Next() {
 		var log models.LogEntry
 		var metadata map[string]interface{}
-		err := rows.Scan(&log.Timestamp, &log.Service, &log.Level, &log.Message, &metadata)
+		err := rows.Scan(&log.ID, &log.Timestamp, &log.Service, &log.Level, &log.Message, &metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -237,6 +237,25 @@ func (r *Repository) GetErrorLogs(ctx context.Context, limit int, timeRange time
 	}
 	
 	return logs, nil
+}
+
+// GetLogByID returns a single log entry by ID
+func (r *Repository) GetLogByID(ctx context.Context, id int64) (*models.LogEntry, error) {
+	query := `
+		SELECT id, timestamp, service, level, message, metadata
+		FROM logs
+		WHERE id = $1
+	`
+	
+	var log models.LogEntry
+	var metadata map[string]interface{}
+	err := r.pool.QueryRow(ctx, query, id).Scan(&log.ID, &log.Timestamp, &log.Service, &log.Level, &log.Message, &metadata)
+	if err != nil {
+		return nil, fmt.Errorf("error getting log by ID: %w", err)
+	}
+	log.Metadata = metadata
+	
+	return &log, nil
 }
 
 // APIKey represents an API key in the database

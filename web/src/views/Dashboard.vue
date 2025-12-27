@@ -230,6 +230,13 @@ onUnmounted(() => {
   margin-bottom: 2rem;
 }
 
+@media (max-width: 640px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
 .status-indicator {
   display: inline-block;
   font-size: 1.5rem;
@@ -263,28 +270,35 @@ onUnmounted(() => {
 
 .chart-card {
   background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 1.75rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  overflow: hidden;
 }
 
 .chart-card h3 {
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
   color: #2c3e50;
+  font-weight: 600;
 }
 
 .chart-card canvas {
   max-height: 300px;
+  max-width: 100%;
+  width: 100%;
+  height: auto;
 }
 
 @media (max-width: 768px) {
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-  
   .charts-section {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .chart-card {
+    padding: 1.25rem;
   }
 }
 </style>
+
 

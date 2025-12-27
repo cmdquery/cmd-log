@@ -161,6 +161,31 @@ func (h *AdminHandler) RecentLogs(c *gin.Context) {
 	})
 }
 
+// GetLogByID returns a single log entry by ID
+func (h *AdminHandler) GetLogByID(c *gin.Context) {
+	ctx := context.Background()
+	
+	idStr := c.Param("id")
+	var id int64
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid log ID",
+		})
+		return
+	}
+	
+	log, err := h.repository.GetLogByID(ctx, id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Log not found",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, log)
+}
+
 // Stats returns aggregated statistics
 func (h *AdminHandler) Stats(c *gin.Context) {
 	ctx := context.Background()

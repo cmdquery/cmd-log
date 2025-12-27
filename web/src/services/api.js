@@ -175,6 +175,11 @@ export async function getRecentLogs(limit = 100) {
   return fetchWithAuth(`/admin/logs/recent?limit=${limit}`)
 }
 
+// Get log by ID
+export async function getLogById(id) {
+  return fetchWithAuth(`/admin/logs/${id}`)
+}
+
 // Get stats
 export async function getStats(range = '24h') {
   return fetchWithAuth(`/admin/stats?range=${range}`)
