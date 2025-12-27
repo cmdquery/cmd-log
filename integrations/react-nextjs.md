@@ -55,7 +55,7 @@ Before you begin, ensure you have:
 - An **API key** from the log ingestion service
 - The **service URL** for your environment:
   - Localhost: `http://localhost:8080`
-  - Production: Your production service URL (e.g., `https://logs.yourdomain.com`)
+  - Production: Your production service URL (e.g., `https://cmdlog.tech`)
 
 ## Localhost Setup
 
@@ -155,7 +155,7 @@ Set environment variables in your production environment (Vercel, AWS, etc.):
 3. Add the following:
 
 ```
-NEXT_PUBLIC_LOG_INGESTION_URL=https://logs.yourdomain.com
+NEXT_PUBLIC_LOG_INGESTION_URL=https://cmdlog.tech
 LOG_INGESTION_API_KEY=your-production-api-key
 ```
 
@@ -176,7 +176,7 @@ Set the same environment variables through your platform's configuration interfa
 Test your production endpoint:
 
 ```bash
-curl https://logs.yourdomain.com/health
+curl https://cmdlog.tech/health
 ```
 
 ### Step 4: Configure CORS (if needed)
@@ -1601,5 +1601,5 @@ This integration guide provides everything you need to integrate the Log Ingesti
 - ✅ Production-ready error handling
 - ✅ Best practices and troubleshooting guides
 
-For additional support or questions, refer to the main [README.md](README.md) or [DEPLOYMENT.md](DEPLOYMENT.md) documentation.
+For additional support or questions, refer to the main [README.md](../README.md) or [DEPLOYMENT.md](../DEPLOYMENT.md) documentation.
 
