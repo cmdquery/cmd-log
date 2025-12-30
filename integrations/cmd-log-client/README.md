@@ -1,4 +1,4 @@
-# @cmd-log/client
+# @cmdquery/log-ingestion-next
 
 Client library for sending logs to the cmd-log ingestion service. Works in both browser and Node.js environments.
 
@@ -19,12 +19,12 @@ Client library for sending logs to the cmd-log ingestion service. Works in both 
 This package is published to GitHub Packages as a private package. To install it:
 
 1. **Create a GitHub Personal Access Token** with `read:packages` permission
-2. **Configure npm to use GitHub Packages** for the `@cmd-log` scope
+2. **Configure npm to use GitHub Packages** for the `@cmdquery` scope
 
 Create or edit `.npmrc` in your project root (or `~/.npmrc` for global):
 
 ```ini
-@cmd-log:registry=https://npm.pkg.github.com
+@cmdquery:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
@@ -37,14 +37,14 @@ export GITHUB_TOKEN=your_github_token_here
 Or add it directly to `.npmrc` (less secure):
 
 ```ini
-@cmd-log:registry=https://npm.pkg.github.com
+@cmdquery:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=ghp_your_token_here
 ```
 
 3. **Install the package**:
 
 ```bash
-npm install @cmd-log/client
+npm install @cmdquery/log-ingestion-next
 ```
 
 Or with yarn:
@@ -58,7 +58,7 @@ yarn add @cmd-log/client
 ### Basic Usage
 
 ```typescript
-import { LogClient } from '@cmd-log/client';
+import { LogClient } from '@cmdquery/log-ingestion-next';
 
 const client = new LogClient({
   apiUrl: 'https://your-service.com',
@@ -120,7 +120,7 @@ await client.flush();
 ### Send Log Directly (No Batching)
 
 ```typescript
-import { LogClient, createLogEntry } from '@cmd-log/client';
+import { LogClient, createLogEntry } from '@cmdquery/log-ingestion-next';
 
 const entry = createLogEntry('my-service', 'INFO', 'Direct log');
 await client.sendLog(entry);
@@ -201,14 +201,14 @@ This package is configured to publish to GitHub Packages. To publish a new versi
    npm publish
    ```
 
-The package will be published to: `https://npm.pkg.github.com/@cmd-log/client`
+The package will be published to: `https://npm.pkg.github.com/@cmdquery/log-ingestion-next`
 
 ## Examples
 
 ### React/Next.js
 
 ```typescript
-import { LogClient } from '@cmd-log/client';
+import { LogClient } from '@cmdquery/log-ingestion-next';
 
 const client = new LogClient({
   apiUrl: process.env.NEXT_PUBLIC_LOG_INGESTION_URL!,
@@ -229,7 +229,7 @@ function MyComponent() {
 ### Node.js
 
 ```typescript
-import { LogClient } from '@cmd-log/client';
+import { LogClient } from '@cmdquery/log-ingestion-next';
 
 const client = new LogClient({
   apiUrl: process.env.LOG_INGESTION_URL!,

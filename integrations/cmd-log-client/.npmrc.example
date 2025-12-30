@@ -3,8 +3,8 @@
 # 
 # Replace YOUR_GITHUB_USERNAME with your GitHub username or organization name
 # 
-# For scoped packages like @cmd-log/client, you need to configure the registry:
-@cmd-log:registry=https://npm.pkg.github.com
+# For scoped packages like @cmdquery/log-ingestion-next, you need to configure the registry:
+@cmdquery:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 
 # To publish, you'll need a GitHub Personal Access Token with 'write:packages' permission
