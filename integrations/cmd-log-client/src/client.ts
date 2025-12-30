@@ -153,7 +153,7 @@ export class LogClient {
           return;
         }
 
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(
           `Log ingestion failed: ${response.status} ${response.statusText} - ${errorData.error || 'Unknown error'}`
         );
@@ -220,13 +220,13 @@ export class LogClient {
           return;
         }
 
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(
           `Batch log ingestion failed: ${response.status} ${response.statusText} - ${errorData.error || 'Unknown error'}`
         );
       }
 
-      const data: BatchLogResponse = await response.json();
+      const data = (await response.json()) as BatchLogResponse;
 
       // Handle partial failures
       if (data.errors && data.errors.length > 0) {
