@@ -287,6 +287,7 @@ EXCLUDE_PATTERNS=(
     "--exclude=*.log"
     "--exclude=.DS_Store"
     "--exclude=web/node_modules"
+    "--exclude=integrations"
 )
 
 if [ "$USE_RSYNC" = true ]; then
@@ -307,6 +308,7 @@ else
         --exclude='*.log' \
         --exclude='.DS_Store' \
         --exclude='web/node_modules' \
+        --exclude='integrations' \
         -czf - . | ssh "${DROPLET_USER}@${DROPLET_IP}" "cd ${APP_DIR} && tar -xzf -"
 fi
 print_success "Files transferred"

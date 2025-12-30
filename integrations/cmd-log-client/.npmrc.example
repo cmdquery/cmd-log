@@ -1,0 +1,16 @@
+# GitHub Packages Configuration
+# Copy this file to .npmrc in your project root (or home directory) to use GitHub Packages
+# 
+# Replace YOUR_GITHUB_USERNAME with your GitHub username or organization name
+# 
+# For scoped packages like @cmd-log/client, you need to configure the registry:
+@cmd-log:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+
+# To publish, you'll need a GitHub Personal Access Token with 'write:packages' permission
+# Set it as an environment variable:
+# export GITHUB_TOKEN=your_token_here
+#
+# Or add it directly to .npmrc (not recommended for security):
+# //npm.pkg.github.com/:_authToken=ghp_your_token_here
+

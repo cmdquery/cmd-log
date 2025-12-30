@@ -56,3 +56,6 @@ Makefile
 # Deploy scripts
 deploy/
 
+# Integration packages (npm packages, gems, etc.)
+integrations/
+

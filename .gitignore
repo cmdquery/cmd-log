@@ -17,4 +17,7 @@ bin/
 # Node modules
 node_modules/
 web/node_modules/
+integrations/*/node_modules/
+integrations/cmd-log-client/node_modules/
+integrations/cmd-log-client/dist/
 
