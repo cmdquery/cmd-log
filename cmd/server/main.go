@@ -49,6 +49,9 @@ func main() {
 	// Initialize admin handler
 	adminHandler := api.NewAdminHandler(repo, batcher, cfg)
 	
+	// Initialize fault handler
+	faultHandler := api.NewFaultHandler(repo)
+	
 	// Setup router
 	router := gin.Default()
 	
@@ -72,6 +75,9 @@ func main() {
 	
 	// Setup routes
 	api.SetupRoutes(router, handler, keyManager, cfg)
+	
+	// Setup fault routes
+	api.SetupFaultRoutes(router, faultHandler, keyManager, cfg)
 	
 	// Setup admin routes
 	api.SetupAdminRoutes(router, adminHandler, cfg)

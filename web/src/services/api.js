@@ -224,5 +224,5 @@ export async function login(password) {
   return { success: false, error: error.error || 'Invalid password' }
 }
 
-export { getApiKey, setApiKey, removeApiKey, getCookie }
+export { getApiKey, setApiKey, removeApiKey, getCookie, fetchWithAuth }
 

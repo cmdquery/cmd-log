@@ -90,4 +90,3 @@ deploy-logs: ## View logs from remote deployment
 		(docker compose -f docker-compose.prod.yml logs -f 2>/dev/null || \
 		 docker-compose -f docker-compose.prod.yml logs -f 2>/dev/null || \
 		 echo 'Docker Compose not found')"
-

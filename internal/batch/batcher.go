@@ -165,4 +165,3 @@ type BatcherMetrics struct {
 	Uptime           time.Duration `json:"uptime"`
 	Config           config.BatchConfig `json:"config"`
 }
-

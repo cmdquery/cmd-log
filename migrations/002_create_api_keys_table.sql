@@ -14,3 +14,5 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key) WHERE is_active = T
 -- Create index on is_active for filtering active keys
 CREATE INDEX IF NOT EXISTS idx_api_keys_is_active ON api_keys(is_active);
 
+
+

@@ -41,3 +41,5 @@ export function validateLogEntry(entry: LogEntry): boolean {
   return true;
 }
 
+
+

@@ -890,3 +890,5 @@ psql -h localhost -U log_ingestion -d logs
 4. Review system resource usage (CPU, memory, disk)
 5. Test health endpoint: `curl http://localhost:8080/health`
 
+
+

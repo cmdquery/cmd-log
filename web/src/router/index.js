@@ -10,12 +10,31 @@ import Login from '../views/Login.vue'
 const routes = [
   {
     path: '/',
-    redirect: '/admin'
+    redirect: '/errors'
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: Login,
+    meta: { requiresAuth: false }
   },
   {
     path: '/admin/login',
-    name: 'Login',
-    component: Login
+    name: 'AdminLogin',
+    component: Login,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/errors',
+    name: 'Errors',
+    component: () => import('../views/Errors.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/errors/:id',
+    name: 'ErrorDetail',
+    component: () => import('../views/ErrorDetail.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/admin',
@@ -59,7 +78,7 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
     const apiKey = getApiKey()
     if (!apiKey) {
-      next('/admin/login')
+      next('/login')
     } else {
       next()
     }

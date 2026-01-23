@@ -21,6 +21,7 @@ body {
     padding: 1rem 0;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     border-bottom: 1px solid #e0e0e0;
+    --navbar-height: 73px;
 }
 
 .nav-container {
@@ -80,6 +81,14 @@ body {
     max-width: 1200px;
     margin: 2rem auto;
     padding: 0 2rem;
+}
+
+.main-content-fullscreen {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    height: calc(100vh - var(--navbar-height, 73px));
+    overflow: hidden;
 }
 
 .page-title {

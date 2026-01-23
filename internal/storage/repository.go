@@ -440,4 +440,3 @@ func (r *Repository) GetAllActiveAPIKeys(ctx context.Context) ([]string, error) 
 	
 	return keys, nil
 }
-
