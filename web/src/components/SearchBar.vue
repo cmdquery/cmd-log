@@ -1,5 +1,6 @@
 <template>
   <div class="search-bar">
+    <span class="search-bar__icon">🔍</span>
     <input
       type="text"
       v-model="query"
@@ -7,15 +8,15 @@
       @keydown.enter="handleSearch"
       @keydown.esc="handleEscape"
       :placeholder="placeholder"
-      class="search-input"
+      class="search-bar__input"
       ref="inputRef"
     />
-    <button @click="handleSearch" class="search-button">Search</button>
+    <button @click="handleSearch" class="btn btn--primary btn--sm">Search</button>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps({
   modelValue: String,
@@ -48,44 +49,48 @@ const handleEscape = () => {
   inputRef.value?.blur()
 }
 
-// Expose focus method for keyboard shortcuts
 defineExpose({
   focus: () => inputRef.value?.focus()
 })
 </script>
 
-<style scoped>
+<style>
 .search-bar {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.search-input {
+  align-items: center;
+  gap: var(--space-2);
+  position: relative;
   flex: 1;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.95rem;
+  max-width: 400px;
 }
 
-.search-input:focus {
+.search-bar__icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--text-quaternary);
+  pointer-events: none;
+  font-size: var(--text-small);
+}
+
+.search-bar__input {
+  flex: 1;
+  padding: var(--space-2) var(--space-4);
+  padding-left: var(--space-10);
+  font-size: var(--text-small);
+  background-color: var(--bg-level-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.search-bar__input::placeholder {
+  color: var(--text-quaternary);
+}
+
+.search-bar__input:focus {
   outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-}
-
-.search-button {
-  padding: 0.75rem 1.5rem;
-  background-color: #3498db;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.search-button:hover {
-  background-color: #2980b9;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
 }
 </style>

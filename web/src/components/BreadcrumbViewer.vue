@@ -1,21 +1,25 @@
 <template>
   <div class="breadcrumb-viewer">
-    <div v-if="!breadcrumbs || breadcrumbs.length === 0" class="empty">
-      No breadcrumbs available
+    <div class="breadcrumb-viewer__header">
+      <span class="breadcrumb-viewer__title">Breadcrumbs</span>
     </div>
-    <div v-else class="breadcrumb-list">
+    <div v-if="!breadcrumbs || breadcrumbs.length === 0" class="empty-state p-6">
+      <div class="empty-state__icon">🍞</div>
+      <div class="empty-state__text">No breadcrumbs available</div>
+    </div>
+    <div v-else>
       <div
         v-for="(crumb, index) in breadcrumbs"
         :key="index"
-        class="breadcrumb-item"
+        class="breadcrumb-viewer__item"
       >
-        <div class="breadcrumb-header">
-          <span class="breadcrumb-category">{{ crumb.category }}</span>
-          <span class="breadcrumb-time">{{ formatTime(crumb.time) }}</span>
-        </div>
-        <div class="breadcrumb-message">{{ crumb.message }}</div>
-        <div v-if="crumb.metadata && Object.keys(crumb.metadata).length > 0" class="breadcrumb-metadata">
-          <pre>{{ JSON.stringify(crumb.metadata, null, 2) }}</pre>
+        <span class="breadcrumb-viewer__time">{{ formatTime(crumb.time) }}</span>
+        <span :class="['breadcrumb-viewer__category', getCategoryColor(crumb.category)]">
+          {{ crumb.category }}
+        </span>
+        <span class="breadcrumb-viewer__message">{{ crumb.message }}</span>
+        <div v-if="crumb.metadata && Object.keys(crumb.metadata).length > 0" class="breadcrumb-viewer__data">
+          {{ JSON.stringify(crumb.metadata, null, 2) }}
         </div>
       </div>
     </div>
@@ -33,70 +37,25 @@ const props = defineProps({
 const formatTime = (time) => {
   if (!time) return ''
   const date = new Date(time)
-  return date.toLocaleString()
+  return date.toLocaleTimeString()
+}
+
+const getCategoryColor = (category) => {
+  const colors = {
+    'http': 'text-blue',
+    'navigation': 'text-green',
+    'click': 'text-purple',
+    'console': 'text-orange',
+    'error': 'text-red'
+  }
+  return colors[category?.toLowerCase()] || ''
 }
 </script>
 
-<style scoped>
-.breadcrumb-viewer {
-  background-color: #ffffff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  padding: 1rem;
-}
-
-.empty {
-  text-align: center;
-  color: #999;
-  padding: 2rem;
-}
-
-.breadcrumb-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.breadcrumb-item {
-  border-left: 3px solid #3498db;
-  padding-left: 1rem;
-  padding-bottom: 1rem;
-}
-
-.breadcrumb-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.breadcrumb-category {
-  font-weight: 600;
-  color: #3498db;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-}
-
-.breadcrumb-time {
-  color: #999;
-  font-size: 0.85rem;
-}
-
-.breadcrumb-message {
-  color: #333;
-  margin-bottom: 0.5rem;
-}
-
-.breadcrumb-metadata {
-  background-color: #f5f5f5;
-  padding: 0.5rem;
-  border-radius: 3px;
-  margin-top: 0.5rem;
-}
-
-.breadcrumb-metadata pre {
-  margin: 0;
-  font-size: 0.85rem;
-  color: #666;
-}
+<style>
+.text-blue { color: var(--color-blue); }
+.text-green { color: var(--color-green); }
+.text-purple { color: var(--color-purple); }
+.text-orange { color: var(--color-orange); }
+.text-red { color: var(--color-red); }
 </style>

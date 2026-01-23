@@ -1,44 +1,48 @@
 <template>
   <div class="errors-page">
-    <div class="page-header">
-      <h1 class="page-title">Errors</h1>
-      <div class="page-actions">
-        <button class="btn btn-primary" @click="refresh">Refresh</button>
+    <div class="section__header mb-6">
+      <h1 class="page-title mb-0">Errors</h1>
+      <div class="flex gap-2">
+        <button class="btn btn--primary" @click="refresh">
+          <span>↻</span>
+          Refresh
+        </button>
       </div>
     </div>
 
-    <div class="filters-section">
+    <div class="filter-bar mb-6">
       <SearchBar
         v-model="searchQuery"
         @search="handleSearch"
         ref="searchBarRef"
+        placeholder="Search errors..."
       />
       
-      <div class="quick-filters">
+      <div class="flex gap-2">
         <button
           v-for="filter in quickFilters"
           :key="filter.key"
-          :class="['filter-btn', { active: activeFilter === filter.key }]"
+          :class="['btn btn--sm', activeFilter === filter.key ? 'btn--brand' : 'btn--ghost']"
           @click="setFilter(filter.key)"
         >
           {{ filter.label }}
         </button>
       </div>
 
-      <div class="filter-controls">
-        <select v-model="selectedEnvironment" @change="applyFilters" class="filter-select">
+      <div class="filter-bar__group ml-auto">
+        <select v-model="selectedEnvironment" @change="applyFilters" class="filter-bar__select">
           <option value="">Any Environment</option>
-          <option value="production">production</option>
-          <option value="staging">staging</option>
-          <option value="development">development</option>
+          <option value="production">Production</option>
+          <option value="staging">Staging</option>
+          <option value="development">Development</option>
         </select>
 
-        <select v-model="selectedAssignee" @change="applyFilters" class="filter-select">
+        <select v-model="selectedAssignee" @change="applyFilters" class="filter-bar__select">
           <option value="">Any Assignee</option>
           <option value="me">Me</option>
         </select>
 
-        <select v-model="bulkAction" @change="handleBulkAction" class="filter-select">
+        <select v-model="bulkAction" @change="handleBulkAction" class="filter-bar__select">
           <option value="">Bulk Actions</option>
           <option value="resolve">Resolve</option>
           <option value="unresolve">Unresolve</option>
@@ -49,12 +53,13 @@
     </div>
 
     <div class="errors-content">
-      <div v-if="loading" class="loading-state">
-        Loading errors...
+      <div v-if="loading" class="loading-spinner">
+        <div class="spinner"></div>
       </div>
-      <div v-else-if="error" class="error-state">
-        <p>Error: {{ error }}</p>
-        <button @click="loadFaults" class="btn btn-primary">Retry</button>
+      <div v-else-if="error" class="card card--empty">
+        <div class="card__icon">⚠️</div>
+        <div class="card__text">{{ error }}</div>
+        <button @click="loadFaults" class="btn btn--primary">Retry</button>
       </div>
       <ErrorTable
         v-else
@@ -66,21 +71,21 @@
 
       <div class="pagination" v-if="total > 0">
         <button
-          class="pagination-btn"
+          class="pagination__btn"
           :disabled="offset === 0"
           @click="previousPage"
         >
-          Previous
+          ← Previous
         </button>
-        <span class="pagination-info">
+        <span class="pagination__info">
           Showing {{ offset + 1 }} to {{ Math.min(offset + limit, total) }} of {{ total }}
         </span>
         <button
-          class="pagination-btn"
+          class="pagination__btn"
           :disabled="offset + limit >= total"
           @click="nextPage"
         >
-          Next
+          Next →
         </button>
       </div>
     </div>
@@ -265,112 +270,3 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyPress)
 })
 </script>
-
-<style scoped>
-.errors-page {
-  padding: 2rem;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.page-title {
-  font-size: 2rem;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.filters-section {
-  margin-bottom: 2rem;
-}
-
-.quick-filters {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.filter-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  background-color: white;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.filter-btn:hover {
-  background-color: #f5f5f5;
-}
-
-.filter-btn.active {
-  background-color: #3498db;
-  color: white;
-  border-color: #3498db;
-}
-
-.filter-controls {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.filter-select {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: white;
-  cursor: pointer;
-}
-
-.errors-content {
-  background-color: white;
-  border-radius: 4px;
-}
-
-.pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-top: 1px solid #e0e0e0;
-}
-
-.pagination-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  background-color: white;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.pagination-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pagination-info {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-}
-
-.error-state {
-  text-align: center;
-  padding: 3rem;
-  color: #e74c3c;
-}
-
-.error-state p {
-  margin-bottom: 1rem;
-}
-</style>

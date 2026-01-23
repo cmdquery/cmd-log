@@ -3,9 +3,10 @@
     <table class="error-table">
       <thead>
         <tr>
-          <th>
+          <th class="w-10">
             <input
               type="checkbox"
+              class="table__checkbox"
               :checked="allSelected"
               @change="toggleAll"
             />
@@ -31,6 +32,7 @@
           <td @click.stop>
             <input
               type="checkbox"
+              class="table__checkbox"
               :checked="selectedIds.has(fault.id)"
               @change="toggleSelection(fault.id)"
             />
@@ -40,23 +42,29 @@
               {{ fault.error_class }}
             </router-link>
           </td>
-          <td>{{ fault.location || 'unknown' }}</td>
+          <td class="text-muted">{{ fault.location || 'unknown' }}</td>
           <td class="message-cell">{{ truncate(fault.message, 60) }}</td>
           <td>
             <span class="env-badge" :class="`env-${fault.environment}`">
               {{ fault.environment }}
             </span>
           </td>
-          <td>{{ getOneHourCount(fault.id) }}</td>
-          <td>{{ fault.occurrence_count }}</td>
-          <td>{{ formatTime(fault.last_seen_at) }}</td>
+          <td>
+            <span :class="getOneHourCount(fault.id) > 0 ? 'text-body' : 'text-muted'">
+              {{ getOneHourCount(fault.id) }}
+            </span>
+          </td>
+          <td>
+            <span class="badge badge--xs">{{ fault.occurrence_count }}</span>
+          </td>
+          <td class="text-muted">{{ formatTime(fault.last_seen_at) }}</td>
           <td>
             <span v-if="fault.assignee" class="assignee">
               {{ fault.assignee.name || fault.assignee.email }}
             </span>
             <span v-else class="no-assignee">—</span>
           </td>
-          <td>
+          <td @click.stop>
             <StatusToggle
               :model-value="fault.resolved"
               @update:model-value="(val) => updateStatus(fault.id, val)"
@@ -66,7 +74,8 @@
       </tbody>
     </table>
     <div v-if="faults.length === 0" class="empty-state">
-      No errors found
+      <div class="empty-state__icon">📭</div>
+      <div class="empty-state__text">No errors found</div>
     </div>
   </div>
 </template>
@@ -144,97 +153,3 @@ const getOneHourCount = (id) => {
   return props.oneHourCounts[id] || 0
 }
 </script>
-
-<style scoped>
-.error-table-container {
-  background-color: #ffffff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  overflow-x: auto;
-}
-
-.error-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.error-table th {
-  background-color: #f5f5f5;
-  padding: 0.75rem;
-  text-align: left;
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: #666;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.error-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.error-table tbody tr:hover {
-  background-color: #f9f9f9;
-}
-
-.error-table tbody tr.row-selected {
-  background-color: #e8f4f8;
-}
-
-.error-link {
-  color: #3498db;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.error-link:hover {
-  text-decoration: underline;
-}
-
-.message-cell {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.env-badge {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 3px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-.env-production {
-  background-color: #e74c3c;
-  color: white;
-}
-
-.env-staging {
-  background-color: #f39c12;
-  color: white;
-}
-
-.env-development {
-  background-color: #3498db;
-  color: white;
-}
-
-.assignee {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.no-assignee {
-  color: #999;
-  font-style: italic;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #999;
-}
-</style>

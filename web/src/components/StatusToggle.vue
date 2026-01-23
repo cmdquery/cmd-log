@@ -4,10 +4,10 @@
       type="checkbox"
       :checked="modelValue"
       @change="handleChange"
-      class="toggle-input"
+      class="status-toggle__input"
     />
-    <span class="toggle-slider"></span>
-    <span class="toggle-label">{{ modelValue ? resolvedLabel : unresolvedLabel }}</span>
+    <span class="status-toggle__switch" :class="{ 'is-active': modelValue }"></span>
+    <span class="status-toggle__label">{{ modelValue ? resolvedLabel : unresolvedLabel }}</span>
   </label>
 </template>
 
@@ -31,49 +31,55 @@ const handleChange = (e) => {
 }
 </script>
 
-<style scoped>
+<style>
 .status-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   cursor: pointer;
 }
 
-.toggle-input {
-  display: none;
+.status-toggle__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
-.toggle-slider {
+.status-toggle__switch {
   position: relative;
-  width: 44px;
-  height: 24px;
-  background-color: #ccc;
-  border-radius: 12px;
-  transition: background-color 0.3s;
+  width: 36px;
+  height: 20px;
+  background-color: var(--bg-level-3);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
-.toggle-slider::before {
+.status-toggle__switch::after {
   content: '';
   position: absolute;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: white;
-  top: 3px;
-  left: 3px;
-  transition: transform 0.3s;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background-color: var(--text-tertiary);
+  border-radius: var(--radius-circle);
+  transition: transform 0.2s, background-color 0.2s;
 }
 
-.toggle-input:checked + .toggle-slider {
-  background-color: #27ae60;
+.status-toggle__switch.is-active {
+  background-color: var(--color-green);
+  border-color: var(--color-green);
 }
 
-.toggle-input:checked + .toggle-slider::before {
-  transform: translateX(20px);
+.status-toggle__switch.is-active::after {
+  transform: translateX(16px);
+  background-color: #ffffff;
 }
 
-.toggle-label {
-  font-size: 0.9rem;
-  color: #666;
+.status-toggle__label {
+  font-size: var(--text-micro);
+  color: var(--text-tertiary);
 }
 </style>

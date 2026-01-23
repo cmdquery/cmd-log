@@ -4,22 +4,44 @@
     
     <div class="metrics-grid">
       <MetricCard title="Service Status" :value="healthStatus">
-        <span class="status-indicator" :class="healthStatusClass">●</span>
-        <span>{{ healthStatusText }}</span>
+        <template #content>
+          <div class="flex items-center gap-2">
+            <span class="status-indicator" :class="healthStatusClass">●</span>
+            <span class="text-body-sm">{{ healthStatusText }}</span>
+          </div>
+        </template>
       </MetricCard>
       
       <MetricCard title="Logs Per Second" :value="metrics.logs?.per_second?.toFixed(2) || '-'" />
       
       <MetricCard title="Total Logs (24h)" :value="formatNumber(metrics.logs?.total || 0)" />
       
-      <MetricCard title="Recent Errors (1h)" :value="metrics.logs?.recent_errors || 0">
-        <span class="error-badge">{{ metrics.logs?.recent_errors || 0 }}</span>
+      <MetricCard title="Recent Errors (1h)">
+        <template #content>
+          <div class="metric-card__value">{{ metrics.logs?.recent_errors || 0 }}</div>
+          <span v-if="metrics.logs?.recent_errors > 0" class="error-badge">
+            {{ metrics.logs?.recent_errors || 0 }} errors
+          </span>
+        </template>
       </MetricCard>
       
       <MetricCard title="Batch Status">
-        <div>Current: <span>{{ metrics.batcher?.current_batch_size || '-' }}</span></div>
-        <div>Processed: <span>{{ formatNumber(metrics.batcher?.total_processed || 0) }}</span></div>
-        <div>Flushes: <span>{{ metrics.batcher?.flush_count || '-' }}</span></div>
+        <template #content>
+          <div class="flex flex-col gap-2 text-body-sm">
+            <div class="flex justify-between">
+              <span class="text-muted">Current:</span>
+              <span>{{ metrics.batcher?.current_batch_size || '-' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-muted">Processed:</span>
+              <span>{{ formatNumber(metrics.batcher?.total_processed || 0) }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-muted">Flushes:</span>
+              <span>{{ metrics.batcher?.flush_count || '-' }}</span>
+            </div>
+          </div>
+        </template>
       </MetricCard>
       
       <MetricCard title="Uptime" :value="metrics.uptime || '-'" />
@@ -45,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { getMetrics, getHealth } from '../services/api'
 import MetricCard from '../components/MetricCard.vue'
@@ -71,6 +93,16 @@ const formatNumber = (num) => {
   return num.toLocaleString()
 }
 
+// Get chart colors based on theme
+const getChartColors = () => {
+  const isDark = document.documentElement.classList.contains('dark')
+  return {
+    text: isDark ? '#d0d6e0' : '#4a4a4a',
+    grid: isDark ? '#23252a' : '#e5e5e5',
+    background: isDark ? '#141516' : '#f5f5f5'
+  }
+}
+
 const loadData = async () => {
   try {
     const [metricsData, healthData] = await Promise.all([
@@ -83,11 +115,11 @@ const loadData = async () => {
     
     if (healthData.status === 'healthy') {
       healthStatus.value = 'Healthy'
-      healthStatusText.value = 'Healthy'
+      healthStatusText.value = 'All systems operational'
       healthStatusClass.value = 'healthy'
     } else {
       healthStatus.value = 'Unhealthy'
-      healthStatusText.value = 'Unhealthy'
+      healthStatusText.value = 'Issues detected'
       healthStatusClass.value = 'error'
     }
     
@@ -95,12 +127,27 @@ const loadData = async () => {
   } catch (error) {
     console.error('Error loading dashboard data:', error)
     healthStatus.value = 'Error'
-    healthStatusText.value = 'Error'
+    healthStatusText.value = 'Connection failed'
     healthStatusClass.value = 'error'
   }
 }
 
 const updateCharts = (data) => {
+  const colors = getChartColors()
+  
+  // Chart.js default options for dark mode
+  const defaultOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: {
+          color: colors.text
+        }
+      }
+    }
+  }
+  
   // Volume chart
   if (volumeChartRef.value) {
     const ctx = volumeChartRef.value.getContext('2d')
@@ -121,16 +168,23 @@ const updateCharts = (data) => {
         datasets: [{
           label: 'Logs',
           data: timeData,
-          borderColor: 'rgb(75, 192, 192)',
-          tension: 0.1
+          borderColor: '#5e6ad2',
+          backgroundColor: 'rgba(94, 106, 210, 0.1)',
+          fill: true,
+          tension: 0.4
         }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
+        ...defaultOptions,
         scales: {
           y: {
-            beginAtZero: true
+            beginAtZero: true,
+            grid: { color: colors.grid },
+            ticks: { color: colors.text }
+          },
+          x: {
+            grid: { color: colors.grid },
+            ticks: { color: colors.text }
           }
         }
       }
@@ -148,24 +202,25 @@ const updateCharts = (data) => {
     const serviceData = Object.values(data.logs.by_service)
     
     serviceChart = new Chart(ctx, {
-      type: 'pie',
+      type: 'doughnut',
       data: {
         labels: serviceLabels,
         datasets: [{
           data: serviceData,
           backgroundColor: [
-            'rgb(255, 99, 132)',
-            'rgb(54, 162, 235)',
-            'rgb(255, 205, 86)',
-            'rgb(75, 192, 192)',
-            'rgb(153, 102, 255)',
-            'rgb(255, 159, 64)'
-          ]
+            '#5e6ad2',
+            '#991B1B',
+            '#4cb782',
+            '#fc7840',
+            '#a855f7',
+            '#3b82f6'
+          ],
+          borderWidth: 0
         }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false
+        ...defaultOptions,
+        cutout: '60%'
       }
     })
   }
@@ -180,24 +235,31 @@ const updateCharts = (data) => {
     const levelLabels = Object.keys(data.logs.by_level)
     const levelData = Object.values(data.logs.by_level)
     
+    // Map levels to thuglife colors
+    const levelColors = {
+      error: '#DC2626',
+      warn: '#fc7840',
+      warning: '#fc7840',
+      info: '#3b82f6',
+      debug: '#a855f7',
+      trace: '#6b6b6b'
+    }
+    
+    const bgColors = levelLabels.map(l => levelColors[l.toLowerCase()] || '#5e6ad2')
+    
     levelChart = new Chart(ctx, {
-      type: 'pie',
+      type: 'doughnut',
       data: {
         labels: levelLabels,
         datasets: [{
           data: levelData,
-          backgroundColor: [
-            'rgb(75, 192, 192)',
-            'rgb(255, 205, 86)',
-            'rgb(255, 99, 132)',
-            'rgb(153, 102, 255)',
-            'rgb(255, 159, 64)'
-          ]
+          backgroundColor: bgColors,
+          borderWidth: 0
         }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false
+        ...defaultOptions,
+        cutout: '60%'
       }
     })
   }
@@ -217,88 +279,3 @@ onUnmounted(() => {
   if (levelChart) levelChart.destroy()
 })
 </script>
-
-<style scoped>
-.dashboard {
-  padding: 1rem 0;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-@media (max-width: 640px) {
-  .metrics-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-}
-
-.status-indicator {
-  display: inline-block;
-  font-size: 1.5rem;
-  margin-right: 0.5rem;
-}
-
-.status-indicator.healthy {
-  color: #27ae60;
-}
-
-.status-indicator.error {
-  color: #e74c3c;
-}
-
-.error-badge {
-  display: inline-block;
-  background-color: #e74c3c;
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.charts-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.5rem;
-  margin-top: 2rem;
-}
-
-.chart-card {
-  background: white;
-  padding: 1.75rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  overflow: hidden;
-}
-
-.chart-card h3 {
-  margin-bottom: 1.25rem;
-  color: #2c3e50;
-  font-weight: 600;
-}
-
-.chart-card canvas {
-  max-height: 300px;
-  max-width: 100%;
-  width: 100%;
-  height: auto;
-}
-
-@media (max-width: 768px) {
-  .charts-section {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .chart-card {
-    padding: 1.25rem;
-  }
-}
-</style>
-
-

@@ -1,23 +1,35 @@
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <h2>Admin Login</h2>
-      <form @submit.prevent="handleLogin">
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input
-            type="password"
-            id="password"
-            v-model="password"
-            required
-            placeholder="Enter admin password"
-          />
+  <div class="layout-auth">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <img src="/logo.svg" alt="Logo" class="login-logo" />
+          <h1 class="login-title">cmd log</h1>
+          <p class="login-subtitle">Sign in to your account</p>
         </div>
-        <div v-if="error" class="error-message">{{ error }}</div>
-        <button type="submit" class="btn btn-primary" :disabled="loading">
-          {{ loading ? 'Logging in...' : 'Login' }}
-        </button>
-      </form>
+        
+        <form @submit.prevent="handleLogin">
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              class="form-input"
+              v-model="password"
+              required
+              placeholder="Enter admin password"
+            />
+          </div>
+          
+          <div v-if="error" class="alert alert--error mb-4">
+            {{ error }}
+          </div>
+          
+          <button type="submit" class="btn btn--brand btn--block" :disabled="loading">
+            {{ loading ? 'Signing in...' : 'Sign in' }}
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 </template>
@@ -39,16 +51,12 @@ const handleLogin = async () => {
   try {
     const result = await login(password.value)
     if (result.success) {
-      // Read the actual API key from the cookie set by the backend
-      // Give it a small delay to ensure the cookie is set
       await new Promise(resolve => setTimeout(resolve, 100))
       const apiKey = getCookie('admin_api_key')
       
       if (apiKey) {
-        // Store the actual API key value from the cookie
         setApiKey(apiKey)
       } else {
-        // Fallback to 'thuglife' if cookie reading fails (backend sets this value)
         console.warn('Could not read cookie, using fallback API key')
         setApiKey('thuglife')
       }
@@ -64,67 +72,3 @@ const handleLogin = async () => {
   }
 }
 </script>
-
-<style scoped>
-.login-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 80vh;
-}
-
-.login-card {
-  background: white;
-  padding: 3rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  width: 100%;
-  max-width: 400px;
-}
-
-.login-card h2 {
-  margin-bottom: 2rem;
-  color: #2c3e50;
-  text-align: center;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-family: inherit;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #3498db;
-}
-
-.btn {
-  width: 100%;
-  padding: 0.75rem;
-  font-size: 1rem;
-}
-
-.error-message {
-  background-color: #fee;
-  color: #721c24;
-  padding: 0.75rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-}
-</style>
-

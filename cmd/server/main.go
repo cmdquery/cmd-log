@@ -58,6 +58,11 @@ func main() {
 	// Serve static files from Vue build
 	router.Static("/assets", "./web/dist/assets")
 	
+	// Serve static files from dist root (logos, etc.) - must be before NoRoute
+	router.StaticFile("/logo.svg", "./web/dist/logo.svg")
+	router.StaticFile("/logo-white.svg", "./web/dist/logo-white.svg")
+	router.StaticFile("/logo.png", "./web/dist/logo.png")
+	
 	// Serve Vue app index.html for all non-API routes (SPA routing)
 	router.NoRoute(func(c *gin.Context) {
 		// Don't serve index.html for API routes
