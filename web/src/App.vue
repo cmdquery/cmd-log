@@ -4,7 +4,7 @@
     <header class="app-header" v-if="showNav">
       <div class="header-left">
         <button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
-          <span>☰</span>
+          <PhList :size="24" />
         </button>
         <div class="logo">
           <img src="/logo.svg" alt="Logo" class="logo-img" v-if="!isDark" />
@@ -19,7 +19,7 @@
       </div>
       <div class="header-right">
         <button class="header-icon" title="Notifications">
-          🔔
+          <PhBell :size="20" />
         </button>
         <div class="user-menu">
           <button class="user-avatar">U</button>
@@ -31,43 +31,43 @@
     <aside class="sidebar" :class="{ 'sidebar-open': sidebarOpen }" v-if="showNav">
       <nav class="sidebar-nav">
         <router-link to="/errors" class="nav-item">
-          <span class="nav-icon">⚡</span>
+          <PhLightning :size="20" class="nav-icon" />
           <span class="nav-text">Errors</span>
         </router-link>
         <router-link to="/logs" class="nav-item">
-          <span class="nav-icon">📋</span>
+          <PhClipboardText :size="20" class="nav-icon" />
           <span class="nav-text">Logs</span>
         </router-link>
         <router-link to="/dashboard" class="nav-item">
-          <span class="nav-icon">📊</span>
+          <PhChartBar :size="20" class="nav-icon" />
           <span class="nav-text">Dashboard</span>
         </router-link>
         <router-link to="/health" class="nav-item">
-          <span class="nav-icon">💚</span>
+          <PhHeartbeat :size="20" class="nav-icon" />
           <span class="nav-text">Health</span>
         </router-link>
         <router-link to="/api-keys" class="nav-item">
-          <span class="nav-icon">🔑</span>
+          <PhKey :size="20" class="nav-icon" />
           <span class="nav-text">API Keys</span>
         </router-link>
         <div class="nav-item opacity-50 cursor-not-allowed">
-          <span class="nav-icon">🔔</span>
+          <PhBell :size="20" class="nav-icon" />
           <span class="nav-text">Alarms</span>
         </div>
         <div class="nav-item opacity-50 cursor-not-allowed">
-          <span class="nav-icon">☁️</span>
+          <PhCloud :size="20" class="nav-icon" />
           <span class="nav-text">Uptime</span>
         </div>
         <div class="nav-item opacity-50 cursor-not-allowed">
-          <span class="nav-icon">⊕</span>
+          <PhRocket :size="20" class="nav-icon" />
           <span class="nav-text">Deployments</span>
         </div>
         <div class="nav-item opacity-50 cursor-not-allowed">
-          <span class="nav-icon">📄</span>
+          <PhFileText :size="20" class="nav-icon" />
           <span class="nav-text">Reports</span>
         </div>
         <div class="nav-item opacity-50 cursor-not-allowed">
-          <span class="nav-icon">⚙️</span>
+          <PhGear :size="20" class="nav-icon" />
           <span class="nav-text">Settings</span>
         </div>
       </nav>
@@ -78,7 +78,8 @@
       </div>
       <div class="theme-toggle">
         <button @click="toggleTheme" class="theme-btn">
-          {{ isDark ? '☀️' : '🌙' }}
+          <PhSun v-if="isDark" :size="20" />
+          <PhMoon v-else :size="20" />
         </button>
       </div>
     </aside>
@@ -109,6 +110,21 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Notification from './components/Notification.vue'
+import {
+  PhList,
+  PhBell,
+  PhLightning,
+  PhClipboardText,
+  PhChartBar,
+  PhHeartbeat,
+  PhKey,
+  PhCloud,
+  PhRocket,
+  PhFileText,
+  PhGear,
+  PhSun,
+  PhMoon
+} from '@phosphor-icons/vue'
 
 const route = useRoute()
 const sidebarOpen = ref(false)
