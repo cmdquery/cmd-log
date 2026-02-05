@@ -907,6 +907,74 @@ func (r *Repository) CreateUser(ctx context.Context, user *models.User) error {
 	return err
 }
 
+// CreateUserWithPassword creates a new user with a password hash for authentication
+func (r *Repository) CreateUserWithPassword(ctx context.Context, email, name, passwordHash string) (*models.User, error) {
+	query := `
+		INSERT INTO users (email, name, password_hash)
+		VALUES ($1, $2, $3)
+		RETURNING id, email, name, avatar_url, password_hash, created_at
+	`
+	
+	var user models.User
+	var avatarURL sql.NullString
+	var pwHash sql.NullString
+	
+	err := r.pool.QueryRow(ctx, query, email, name, passwordHash).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&avatarURL,
+		&pwHash,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating user: %w", err)
+	}
+	
+	if avatarURL.Valid {
+		user.AvatarURL = &avatarURL.String
+	}
+	if pwHash.Valid {
+		user.PasswordHash = &pwHash.String
+	}
+	
+	return &user, nil
+}
+
+// GetUserByEmail returns a user by email, including the password hash for login verification
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	query := `
+		SELECT id, email, name, avatar_url, password_hash, created_at
+		FROM users
+		WHERE email = $1
+	`
+	
+	var user models.User
+	var avatarURL sql.NullString
+	var pwHash sql.NullString
+	
+	err := r.pool.QueryRow(ctx, query, email).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&avatarURL,
+		&pwHash,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user by email: %w", err)
+	}
+	
+	if avatarURL.Valid {
+		user.AvatarURL = &avatarURL.String
+	}
+	if pwHash.Valid {
+		user.PasswordHash = &pwHash.String
+	}
+	
+	return &user, nil
+}
+
 // MergeFaults merges notices from source fault into target fault
 func (r *Repository) MergeFaults(ctx context.Context, sourceFaultID, targetFaultID int64) error {
 	// Update all notices to point to target fault

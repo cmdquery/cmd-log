@@ -31,42 +31,35 @@ command_exists() {
 
 # Variables for process management
 FRONTEND_PID=""
-BACKEND_CONTAINER="log-ingestion-app"
 
 # Function to cleanup on exit
 cleanup() {
     echo ""
     print_info "Shutting down services..."
-    
+
     # Kill frontend dev server if running
     if [ ! -z "$FRONTEND_PID" ] && kill -0 $FRONTEND_PID 2>/dev/null; then
         print_info "Stopping frontend dev server (PID: $FRONTEND_PID)..."
-        # Kill the process and its children
         kill -TERM $FRONTEND_PID 2>/dev/null || true
         sleep 1
-        # Force kill if still running
         kill -KILL $FRONTEND_PID 2>/dev/null || true
         wait $FRONTEND_PID 2>/dev/null || true
     fi
-    
+
     # Kill any remaining node/npm processes related to our frontend
     pkill -f "vite.*5173" 2>/dev/null || true
-    
-    # Stop backend Docker container
-    print_info "Stopping backend server..."
-    if [ ! -z "$DOCKER_COMPOSE" ] && docker ps --format '{{.Names}}' | grep -q "^${BACKEND_CONTAINER}$"; then
-        $DOCKER_COMPOSE stop app >/dev/null 2>&1 || true
-        $DOCKER_COMPOSE rm -f app >/dev/null 2>&1 || true
-    fi
-    
+
     print_success "All services stopped"
+    print_info "TimescaleDB is still running. Stop it with: docker-compose down"
     exit 0
 }
 
 # Trap Ctrl+C and call cleanup function
 trap cleanup SIGINT SIGTERM
 
+# =============================================================================
 # Step 1: Check Prerequisites
+# =============================================================================
 echo -e "\n${BLUE}=== Checking Prerequisites ===${NC}\n"
 
 # Check Docker
@@ -81,6 +74,28 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
 fi
 print_success "Docker is installed and running"
+
+# Check Docker Compose
+if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
+    print_error "Docker Compose is not available. Please install Docker Compose and try again."
+    exit 1
+fi
+
+# Determine docker-compose command
+if command_exists docker-compose; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    DOCKER_COMPOSE="docker compose"
+fi
+print_success "Docker Compose is available"
+
+# Check Go
+if ! command_exists go; then
+    print_error "Go is not installed. Please install Go 1.21 or later."
+    exit 1
+fi
+GO_VERSION=$(go version | awk '{print $3}')
+print_success "Go is installed ($GO_VERSION)"
 
 # Check Node.js
 if ! command_exists node; then
@@ -98,32 +113,22 @@ fi
 NPM_VERSION=$(npm --version)
 print_success "npm is installed (v$NPM_VERSION)"
 
-# Check Docker Compose
-if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
-    print_error "Docker Compose is not available. Please install Docker Compose and try again."
-    exit 1
-fi
-
-# Determine docker-compose command (docker-compose or docker compose)
-if command_exists docker-compose; then
-    DOCKER_COMPOSE="docker-compose"
-else
-    DOCKER_COMPOSE="docker compose"
-fi
-print_success "Docker Compose is available"
-
-# Step 2: Start Database
+# =============================================================================
+# Step 2: Start Database (TimescaleDB only)
+# =============================================================================
 echo -e "\n${BLUE}=== Starting Database ===${NC}\n"
 
 print_info "Starting TimescaleDB container..."
-if $DOCKER_COMPOSE up -d >/dev/null 2>&1; then
+if $DOCKER_COMPOSE up -d timescaledb >/dev/null 2>&1; then
     print_success "TimescaleDB container started"
 else
     print_error "Failed to start TimescaleDB container"
     exit 1
 fi
 
+# =============================================================================
 # Step 3: Wait for Database to be Ready
+# =============================================================================
 echo -e "\n${BLUE}=== Waiting for Database ===${NC}\n"
 
 print_info "Waiting for database to be ready..."
@@ -137,13 +142,13 @@ while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
         print_error "Container ${CONTAINER_NAME} is not running"
         exit 1
     fi
-    
+
     # Check if database is ready using pg_isready
     if docker exec $CONTAINER_NAME pg_isready -U postgres >/dev/null 2>&1; then
         print_success "Database is ready"
         break
     fi
-    
+
     WAIT_COUNT=$((WAIT_COUNT + 2))
     if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
         echo -n "."
@@ -158,30 +163,44 @@ if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
     exit 1
 fi
 
-# Step 4: Run Migrations
+# =============================================================================
+# Step 4: Run ALL Migrations
+# =============================================================================
 echo -e "\n${BLUE}=== Running Migrations ===${NC}\n"
 
-print_info "Running database migrations..."
-MIGRATION_OUTPUT=$($DOCKER_COMPOSE exec -T timescaledb psql -U postgres -d logs < migrations/001_create_logs_table.sql 2>&1)
-MIGRATION_EXIT_CODE=$?
+MIGRATION_FAILED=0
+for MIGRATION_FILE in $(ls migrations/*.sql | sort); do
+    MIGRATION_NAME=$(basename "$MIGRATION_FILE")
+    print_info "Running migration: $MIGRATION_NAME"
 
-if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
-    print_success "Migrations completed successfully"
-else
-    # Check if it's just a "table already exists" error (idempotent)
-    if echo "$MIGRATION_OUTPUT" | grep -q "already exists\|duplicate"; then
-        print_warning "Migrations may have already been applied (this is okay)"
+    MIGRATION_OUTPUT=$($DOCKER_COMPOSE exec -T timescaledb psql -U postgres -d logs < "$MIGRATION_FILE" 2>&1)
+    MIGRATION_EXIT_CODE=$?
+
+    if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
+        print_success "  $MIGRATION_NAME applied"
     else
-        print_error "Migration failed. Output:"
-        echo "$MIGRATION_OUTPUT"
-        exit 1
+        if echo "$MIGRATION_OUTPUT" | grep -q "already exists\|duplicate"; then
+            print_warning "  $MIGRATION_NAME already applied (skipped)"
+        else
+            print_error "  $MIGRATION_NAME failed:"
+            echo "$MIGRATION_OUTPUT"
+            MIGRATION_FAILED=1
+        fi
     fi
+done
+
+if [ $MIGRATION_FAILED -eq 1 ]; then
+    print_error "Some migrations failed. Please fix the errors above and try again."
+    exit 1
 fi
 
+print_success "All migrations completed"
+
+# =============================================================================
 # Step 5: Setup Frontend
+# =============================================================================
 echo -e "\n${BLUE}=== Setting Up Frontend ===${NC}\n"
 
-# Check if node_modules exists
 if [ ! -d "web/node_modules" ]; then
     print_info "Installing frontend dependencies..."
     cd web
@@ -196,13 +215,14 @@ else
     print_success "Frontend dependencies already installed"
 fi
 
+# =============================================================================
 # Step 6: Start Frontend Dev Server
+# =============================================================================
 echo -e "\n${BLUE}=== Starting Frontend Dev Server ===${NC}\n"
 
 print_info "Starting frontend dev server on http://localhost:5173"
 cd web
-# Start frontend in background with output to log file
-npm run dev > /tmp/frontend.log 2>&1 &
+npm run dev > /tmp/cmd-log-frontend.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
 
@@ -213,37 +233,41 @@ sleep 3
 if ! kill -0 $FRONTEND_PID 2>/dev/null; then
     print_error "Frontend dev server failed to start"
     echo "Frontend logs:"
-    cat /tmp/frontend.log 2>/dev/null || true
+    cat /tmp/cmd-log-frontend.log 2>/dev/null || true
     exit 1
 fi
 
 print_success "Frontend dev server started (PID: $FRONTEND_PID)"
-print_info "Frontend running at http://localhost:5173"
-print_info "Frontend logs: tail -f /tmp/frontend.log"
+print_info "Frontend logs: tail -f /tmp/cmd-log-frontend.log"
 
-# Step 7: Build and Start Backend Server
-echo -e "\n${BLUE}=== Building and Starting Backend Server ===${NC}\n"
+# =============================================================================
+# Step 7: Start Go Backend (native, no Docker)
+# =============================================================================
+echo -e "\n${BLUE}=== Starting Backend Server ===${NC}\n"
 
-print_info "Building backend Docker image..."
-if $DOCKER_COMPOSE build app >/dev/null 2>&1; then
-    print_success "Backend Docker image built"
-else
-    print_error "Failed to build backend Docker image"
-    exit 1
-fi
+# Export environment variables for the Go backend
+export LOG_INGESTION_SERVER_HOST=0.0.0.0
+export LOG_INGESTION_SERVER_PORT=8080
+export LOG_INGESTION_DB_HOST=localhost
+export LOG_INGESTION_DB_PORT=5432
+export LOG_INGESTION_DB_USER=postgres
+export LOG_INGESTION_DB_PASSWORD=postgres
+export LOG_INGESTION_DB_NAME=logs
+export LOG_INGESTION_DB_SSLMODE=disable
+export LOG_INGESTION_BATCH_SIZE=1000
+export LOG_INGESTION_BATCH_FLUSH_INTERVAL=5s
+export LOG_INGESTION_RATELIMIT_ENABLED=true
+export LOG_INGESTION_RATELIMIT_DEFAULT_RPS=100
+export LOG_INGESTION_RATELIMIT_BURST=200
 
-print_info "Starting backend server on http://localhost:8080"
-print_info "Press Ctrl+C to stop all services"
 echo ""
 print_info "Services:"
-print_info "  - Frontend: http://localhost:5173 (background, logs: /tmp/frontend.log)"
-print_info "  - Backend:  http://localhost:8080 (Docker container, foreground)"
+print_info "  Frontend:  http://localhost:5173 (Vite dev server, logs: /tmp/cmd-log-frontend.log)"
+print_info "  Backend:   http://localhost:8080 (Go, running natively)"
+print_info "  Database:  localhost:5432 (TimescaleDB in Docker)"
+echo ""
+print_info "Press Ctrl+C to stop all services"
 echo ""
 
-# Run backend in foreground - this will block until Ctrl+C
-# Frontend continues running in background
-# Use --no-deps to avoid restarting timescaledb, and remove container on exit
-$DOCKER_COMPOSE up --no-deps app
-
-# If we get here, backend exited (or was interrupted)
-# Cleanup will be called by trap
+# Run Go backend in foreground -- blocks until Ctrl+C
+go run ./cmd/server

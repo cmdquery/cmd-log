@@ -6,14 +6,17 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"log-ingestion-service/internal/auth"
 	"log-ingestion-service/internal/batch"
 	"log-ingestion-service/internal/storage"
 	"log-ingestion-service/pkg/config"
 	"log-ingestion-service/pkg/models"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // AdminHandler handles admin web interface requests
@@ -233,35 +236,142 @@ func (h *AdminHandler) Stats(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// Login handles login form submission
-func (h *AdminHandler) Login(c *gin.Context) {
-	var req struct {
-		Password string `json:"password" form:"password"`
-	}
-	
-	if err := c.ShouldBind(&req); err != nil {
+// RegisterRequest represents the request to register a new user
+type RegisterRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Name     string `json:"name" binding:"required"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+// Register handles user registration
+func (h *AdminHandler) Register(c *gin.Context) {
+	var req RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request",
+			"error":   "Invalid request",
 			"details": err.Error(),
 		})
 		return
 	}
-	
-	// Hardcoded password for dev
-	if req.Password == "thuglife" {
-		// Set cookie with API key value 'thuglife'
-		c.SetCookie("admin_api_key", "thuglife", 86400*7, "/", "", false, false) // 7 days, httpOnly=false for now
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "Login successful",
+
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.Name = strings.TrimSpace(req.Name)
+
+	// Check if user already exists
+	ctx := context.Background()
+	existing, _ := h.repository.GetUserByEmail(ctx, req.Email)
+	if existing != nil {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "A user with this email already exists",
 		})
 		return
 	}
-	
-	// Invalid password
-	c.JSON(http.StatusUnauthorized, gin.H{
-		"success": false,
-		"error": "Invalid password",
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("ERROR: Failed to hash password: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create account",
+		})
+		return
+	}
+
+	// Create user
+	user, err := h.repository.CreateUserWithPassword(ctx, req.Email, req.Name, string(hashedPassword))
+	if err != nil {
+		log.Printf("ERROR: Failed to create user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to create account",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	log.Printf("INFO: User registered successfully: ID=%d, Email=%s", user.ID, user.Email)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Account created successfully",
+		"user": gin.H{
+			"id":    user.ID,
+			"email": user.Email,
+			"name":  user.Name,
+		},
+	})
+}
+
+// LoginRequest represents the request to log in
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// Login handles user login with email and password
+func (h *AdminHandler) Login(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
+	// Look up user by email
+	ctx := context.Background()
+	user, err := h.repository.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Invalid email or password",
+		})
+		return
+	}
+
+	// Verify password
+	if user.PasswordHash == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Invalid email or password",
+		})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Invalid email or password",
+		})
+		return
+	}
+
+	// Generate JWT
+	token, err := auth.GenerateJWT(h.config.Auth.JWTSecret, user.ID, user.Email, user.Name)
+	if err != nil {
+		log.Printf("ERROR: Failed to generate JWT: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate authentication token",
+		})
+		return
+	}
+
+	// Set auth cookie (7 days, httpOnly=false so JS can read it)
+	c.SetCookie("auth_token", token, 86400*7, "/", "", false, false)
+
+	log.Printf("INFO: User logged in: ID=%d, Email=%s", user.ID, user.Email)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Login successful",
+		"token":   token,
+		"user": gin.H{
+			"id":    user.ID,
+			"email": user.Email,
+			"name":  user.Name,
+		},
 	})
 }
 

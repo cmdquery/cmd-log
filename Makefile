@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend run test clean docker-up docker-down docker-check migrate deploy deploy-quick deploy-status deploy-logs env
+.PHONY: help build build-frontend run dev test clean docker-up docker-down docker-check migrate deploy deploy-quick deploy-status deploy-logs env
 
 # Check if Docker daemon is running
 check_docker = @docker info >/dev/null 2>&1 || (echo "Error: Docker daemon is not running. Please start Docker Desktop and try again." && exit 1)
@@ -37,12 +37,18 @@ docker-down: ## Stop Docker containers
 
 migrate: ## Run database migrations
 	@echo "Running migrations..."
-	@docker-compose exec -T timescaledb psql -U postgres -d logs < migrations/001_create_logs_table.sql || \
-	psql -h localhost -U postgres -d logs -f migrations/001_create_logs_table.sql
-	@docker-compose exec -T timescaledb psql -U postgres -d logs < migrations/002_create_api_keys_table.sql || \
-	psql -h localhost -U postgres -d logs -f migrations/002_create_api_keys_table.sql
+	@for f in $$(ls migrations/*.sql | sort); do \
+		echo "  Applying $$(basename $$f)..."; \
+		docker-compose exec -T timescaledb psql -U postgres -d logs < $$f 2>&1 || \
+		psql -h localhost -U postgres -d logs -f $$f 2>&1; \
+	done
+	@echo "Migrations complete."
 
 setup: docker-up migrate ## Setup development environment
+
+dev: ## Start all services for local development (DB + migrations + frontend + backend)
+	@chmod +x start.sh
+	@./start.sh
 
 env: ## Copy .env.example to .env for local development
 	@if [ -f .env ]; then \

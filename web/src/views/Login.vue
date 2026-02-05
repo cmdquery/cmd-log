@@ -10,6 +10,19 @@
         
         <form @submit.prevent="handleLogin">
           <div class="form-group">
+            <label class="form-label" for="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              class="form-input"
+              v-model="email"
+              required
+              placeholder="you@example.com"
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="form-group">
             <label class="form-label" for="password">Password</label>
             <input
               type="password"
@@ -17,7 +30,8 @@
               class="form-input"
               v-model="password"
               required
-              placeholder="Enter admin password"
+              placeholder="Enter your password"
+              autocomplete="current-password"
             />
           </div>
           
@@ -29,6 +43,10 @@
             {{ loading ? 'Signing in...' : 'Sign in' }}
           </button>
         </form>
+
+        <p class="login-footer">
+          Don't have an account? <router-link to="/register">Create one</router-link>
+        </p>
       </div>
     </div>
   </div>
@@ -37,9 +55,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { login, setApiKey, getCookie } from '../services/api'
+import { login } from '../services/api'
 
 const router = useRouter()
+const email = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
@@ -49,21 +68,11 @@ const handleLogin = async () => {
   loading.value = true
   
   try {
-    const result = await login(password.value)
+    const result = await login(email.value, password.value)
     if (result.success) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      const apiKey = getCookie('admin_api_key')
-      
-      if (apiKey) {
-        setApiKey(apiKey)
-      } else {
-        console.warn('Could not read cookie, using fallback API key')
-        setApiKey('thuglife')
-      }
-      
-      router.push('/admin')
+      router.push('/errors')
     } else {
-      error.value = result.error || 'Invalid password'
+      error.value = result.error || 'Invalid email or password'
     }
   } catch (err) {
     error.value = err.message || 'Login failed'
@@ -72,3 +81,21 @@ const handleLogin = async () => {
   }
 }
 </script>
+
+<style scoped>
+.login-footer {
+  text-align: center;
+  margin-top: var(--space-6);
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+
+.login-footer a {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.login-footer a:hover {
+  text-decoration: underline;
+}
+</style>

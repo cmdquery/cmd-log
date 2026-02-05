@@ -20,8 +20,8 @@ function spaFallback() {
           return next()
         }
         
-        // For API routes (/api/*), always proxy
-        if (req.url.startsWith('/api/')) {
+        // For API routes (/api/*) and auth routes (/auth/*), always proxy
+        if (req.url.startsWith('/api/') || req.url.startsWith('/auth/')) {
           return next()
         }
         
@@ -67,6 +67,10 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      },
+      '/auth': {
         target: 'http://localhost:8080',
         changeOrigin: true
       },

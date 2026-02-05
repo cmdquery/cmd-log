@@ -1,11 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getApiKey } from '../services/api'
+import { isAuthenticated } from '../services/api'
 import Dashboard from '../views/Dashboard.vue'
 import LogsViewer from '../views/LogsViewer.vue'
 import LogDetail from '../views/LogDetail.vue'
 import HealthStatus from '../views/HealthStatus.vue'
 import APIKeys from '../views/APIKeys.vue'
 import Login from '../views/Login.vue'
+import Register from '../views/Register.vue'
 
 const routes = [
   {
@@ -16,6 +17,12 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: Login,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: Register,
     meta: { requiresAuth: false }
   },
   {
@@ -76,8 +83,7 @@ const router = createRouter({
 // Navigation guard to check authentication
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
-    const apiKey = getApiKey()
-    if (!apiKey) {
+    if (!isAuthenticated()) {
       next('/login')
     } else {
       next()
@@ -88,4 +94,3 @@ router.beforeEach((to, from, next) => {
 })
 
 export default router
-

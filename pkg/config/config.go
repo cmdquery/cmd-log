@@ -52,6 +52,7 @@ type RateLimitConfig struct {
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
 	AdminAPIKeys []string `mapstructure:"admin_api_keys"`
+	JWTSecret    string   `mapstructure:"jwt_secret"`
 }
 
 // Load reads configuration from environment variables and config files
@@ -105,6 +106,8 @@ func setDefaults() {
 	viper.SetDefault("ratelimit.enabled", true)
 	viper.SetDefault("ratelimit.default_rps", 100)
 	viper.SetDefault("ratelimit.burst", 200)
+	
+	viper.SetDefault("auth.jwt_secret", "dev-secret-change-me-in-production")
 }
 
 func bindEnvVars() {
@@ -121,6 +124,8 @@ func bindEnvVars() {
 	viper.BindEnv("ratelimit.enabled", "LOG_INGESTION_RATELIMIT_ENABLED")
 	viper.BindEnv("ratelimit.default_rps", "LOG_INGESTION_RATELIMIT_DEFAULT_RPS")
 	viper.BindEnv("ratelimit.burst", "LOG_INGESTION_RATELIMIT_BURST")
+	
+	viper.BindEnv("auth.jwt_secret", "LOG_INGESTION_JWT_SECRET")
 	
 	// Admin API keys from environment (comma-separated)
 	// Check LOG_INGESTION_ADMIN_API_KEYS first, fallback to LOG_INGESTION_API_KEYS

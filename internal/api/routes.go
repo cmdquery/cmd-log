@@ -33,8 +33,8 @@ func SetupFaultRoutes(router *gin.Engine, faultHandler *FaultHandler, keyManager
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
-		// Apply authentication middleware
-		v1.Use(auth.APIKeyAuth(keyManager))
+		// Apply combined auth middleware (accepts API key OR JWT token)
+		v1.Use(auth.CombinedAuth(keyManager, cfg.Auth.JWTSecret))
 		
 		// Apply rate limiting middleware
 		v1.Use(middleware.RateLimit(&cfg.RateLimit))

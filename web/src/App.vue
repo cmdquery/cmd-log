@@ -22,7 +22,9 @@
           <PhBell :size="20" />
         </button>
         <div class="user-menu">
-          <button class="user-avatar">U</button>
+          <button class="user-avatar" @click="handleLogout" title="Sign out">
+            <PhSignOut :size="20" />
+          </button>
         </div>
       </div>
     </header>
@@ -108,8 +110,9 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Notification from './components/Notification.vue'
+import { logout } from './services/api'
 import {
   PhList,
   PhBell,
@@ -123,16 +126,23 @@ import {
   PhFileText,
   PhGear,
   PhSun,
-  PhMoon
+  PhMoon,
+  PhSignOut
 } from '@phosphor-icons/vue'
 
 const route = useRoute()
+const router = useRouter()
 const sidebarOpen = ref(false)
 const isDark = ref(true) // Default to dark mode
 
 const showNav = computed(() => {
-  return route.path !== '/admin/login' && route.path !== '/login'
+  return route.path !== '/admin/login' && route.path !== '/login' && route.path !== '/register'
 })
+
+const handleLogout = () => {
+  logout()
+  router.push('/login')
+}
 
 const toggleTheme = () => {
   isDark.value = !isDark.value
