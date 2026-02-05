@@ -124,7 +124,7 @@ func (r *Repository) GetFault(ctx context.Context, id int64) (*models.Fault, err
 		SELECT f.id, f.project_id, f.error_class, f.message, f.location, f.environment,
 		       f.resolved, f.ignored, f.assignee_id, f.tags, f.public, f.occurrence_count,
 		       f.first_seen_at, f.last_seen_at, f.created_at, f.updated_at,
-		       u.id, u.email, u.name, u.avatar_url, u.created_at
+		       u.id, u.email, u.name, u.avatar_url, u.is_admin, u.created_at
 		FROM faults f
 		LEFT JOIN users u ON f.assignee_id = u.id
 		WHERE f.id = $1
@@ -134,6 +134,7 @@ func (r *Repository) GetFault(ctx context.Context, id int64) (*models.Fault, err
 	var userID sql.NullInt64
 	var userEmail, userName sql.NullString
 	var userAvatarURL sql.NullString
+	var userIsAdmin sql.NullBool
 	var userCreatedAt sql.NullTime
 	
 	err := r.pool.QueryRow(ctx, query, id).Scan(
@@ -157,6 +158,7 @@ func (r *Repository) GetFault(ctx context.Context, id int64) (*models.Fault, err
 		&userEmail,
 		&userName,
 		&userAvatarURL,
+		&userIsAdmin,
 		&userCreatedAt,
 	)
 	
@@ -169,6 +171,7 @@ func (r *Repository) GetFault(ctx context.Context, id int64) (*models.Fault, err
 			ID:        userID.Int64,
 			Email:     userEmail.String,
 			Name:      userName.String,
+			IsAdmin:   userIsAdmin.Valid && userIsAdmin.Bool,
 			CreatedAt: userCreatedAt.Time,
 		}
 		if userAvatarURL.Valid {
@@ -262,7 +265,7 @@ func (r *Repository) ListFaults(ctx context.Context, filters FaultFilters) ([]mo
 		SELECT f.id, f.project_id, f.error_class, f.message, f.location, f.environment,
 		       f.resolved, f.ignored, f.assignee_id, f.tags, f.public, f.occurrence_count,
 		       f.first_seen_at, f.last_seen_at, f.created_at, f.updated_at,
-		       u.id, u.email, u.name, u.avatar_url, u.created_at
+		       u.id, u.email, u.name, u.avatar_url, u.is_admin, u.created_at
 		FROM faults f
 		LEFT JOIN users u ON f.assignee_id = u.id
 		%s
@@ -284,6 +287,7 @@ func (r *Repository) ListFaults(ctx context.Context, filters FaultFilters) ([]mo
 		var userID sql.NullInt64
 		var userEmail, userName sql.NullString
 		var userAvatarURL sql.NullString
+		var userIsAdmin sql.NullBool
 		var userCreatedAt sql.NullTime
 		
 		err := rows.Scan(
@@ -307,6 +311,7 @@ func (r *Repository) ListFaults(ctx context.Context, filters FaultFilters) ([]mo
 			&userEmail,
 			&userName,
 			&userAvatarURL,
+			&userIsAdmin,
 			&userCreatedAt,
 		)
 		if err != nil {
@@ -318,6 +323,7 @@ func (r *Repository) ListFaults(ctx context.Context, filters FaultFilters) ([]mo
 				ID:        userID.Int64,
 				Email:     userEmail.String,
 				Name:      userName.String,
+				IsAdmin:   userIsAdmin.Valid && userIsAdmin.Bool,
 				CreatedAt: userCreatedAt.Time,
 			}
 			if userAvatarURL.Valid {
@@ -731,7 +737,7 @@ func (r *Repository) AddFaultHistory(ctx context.Context, faultID int64, action 
 func (r *Repository) GetFaultHistory(ctx context.Context, faultID int64) ([]models.FaultHistory, error) {
 	query := `
 		SELECT h.id, h.fault_id, h.action, h.user_id, h.revision, h.created_at,
-		       u.id, u.email, u.name, u.avatar_url, u.created_at
+		       u.id, u.email, u.name, u.avatar_url, u.is_admin, u.created_at
 		FROM fault_history h
 		LEFT JOIN users u ON h.user_id = u.id
 		WHERE h.fault_id = $1
@@ -750,6 +756,7 @@ func (r *Repository) GetFaultHistory(ctx context.Context, faultID int64) ([]mode
 		var userID sql.NullInt64
 		var userEmail, userName sql.NullString
 		var userAvatarURL sql.NullString
+		var userIsAdmin sql.NullBool
 		var userCreatedAt sql.NullTime
 		
 		err := rows.Scan(
@@ -763,6 +770,7 @@ func (r *Repository) GetFaultHistory(ctx context.Context, faultID int64) ([]mode
 			&userEmail,
 			&userName,
 			&userAvatarURL,
+			&userIsAdmin,
 			&userCreatedAt,
 		)
 		if err != nil {
@@ -774,6 +782,7 @@ func (r *Repository) GetFaultHistory(ctx context.Context, faultID int64) ([]mode
 				ID:        userID.Int64,
 				Email:     userEmail.String,
 				Name:      userName.String,
+				IsAdmin:   userIsAdmin.Valid && userIsAdmin.Bool,
 				CreatedAt: userCreatedAt.Time,
 			}
 			if userAvatarURL.Valid {
@@ -806,7 +815,7 @@ func (r *Repository) CreateComment(ctx context.Context, comment *models.Comment)
 func (r *Repository) GetFaultComments(ctx context.Context, faultID int64) ([]models.Comment, error) {
 	query := `
 		SELECT c.id, c.fault_id, c.user_id, c.comment, c.created_at,
-		       u.id, u.email, u.name, u.avatar_url, u.created_at
+		       u.id, u.email, u.name, u.avatar_url, u.is_admin, u.created_at
 		FROM fault_comments c
 		JOIN users u ON c.user_id = u.id
 		WHERE c.fault_id = $1
@@ -835,6 +844,7 @@ func (r *Repository) GetFaultComments(ctx context.Context, faultID int64) ([]mod
 			&user.Email,
 			&user.Name,
 			&userAvatarURL,
+			&user.IsAdmin,
 			&user.CreatedAt,
 		)
 		if err != nil {
@@ -855,7 +865,7 @@ func (r *Repository) GetFaultComments(ctx context.Context, faultID int64) ([]mod
 // GetUsers returns all users
 func (r *Repository) GetUsers(ctx context.Context) ([]models.User, error) {
 	query := `
-		SELECT id, email, name, avatar_url, created_at
+		SELECT id, email, name, avatar_url, is_admin, created_at
 		FROM users
 		ORDER BY name ASC
 	`
@@ -876,6 +886,7 @@ func (r *Repository) GetUsers(ctx context.Context) ([]models.User, error) {
 			&u.Email,
 			&u.Name,
 			&avatarURL,
+			&u.IsAdmin,
 			&u.CreatedAt,
 		)
 		if err != nil {
@@ -912,7 +923,7 @@ func (r *Repository) CreateUserWithPassword(ctx context.Context, email, name, pa
 	query := `
 		INSERT INTO users (email, name, password_hash)
 		VALUES ($1, $2, $3)
-		RETURNING id, email, name, avatar_url, password_hash, created_at
+		RETURNING id, email, name, avatar_url, password_hash, is_admin, created_at
 	`
 	
 	var user models.User
@@ -925,6 +936,7 @@ func (r *Repository) CreateUserWithPassword(ctx context.Context, email, name, pa
 		&user.Name,
 		&avatarURL,
 		&pwHash,
+		&user.IsAdmin,
 		&user.CreatedAt,
 	)
 	if err != nil {
@@ -944,7 +956,7 @@ func (r *Repository) CreateUserWithPassword(ctx context.Context, email, name, pa
 // GetUserByEmail returns a user by email, including the password hash for login verification
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, name, avatar_url, password_hash, created_at
+		SELECT id, email, name, avatar_url, password_hash, is_admin, created_at
 		FROM users
 		WHERE email = $1
 	`
@@ -959,6 +971,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.
 		&user.Name,
 		&avatarURL,
 		&pwHash,
+		&user.IsAdmin,
 		&user.CreatedAt,
 	)
 	if err != nil {

@@ -62,6 +62,7 @@ func CombinedAuth(keyManager *KeyManager, jwtSecret string) gin.HandlerFunc {
 				c.Set("user_id", claims.UserID)
 				c.Set("user_email", claims.UserEmail)
 				c.Set("user_name", claims.UserName)
+				c.Set("is_admin", claims.IsAdmin)
 				c.Next()
 				return
 			}

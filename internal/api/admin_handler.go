@@ -294,9 +294,10 @@ func (h *AdminHandler) Register(c *gin.Context) {
 		"success": true,
 		"message": "Account created successfully",
 		"user": gin.H{
-			"id":    user.ID,
-			"email": user.Email,
-			"name":  user.Name,
+			"id":       user.ID,
+			"email":    user.Email,
+			"name":     user.Name,
+			"is_admin": user.IsAdmin,
 		},
 	})
 }
@@ -349,7 +350,7 @@ func (h *AdminHandler) Login(c *gin.Context) {
 	}
 
 	// Generate JWT
-	token, err := auth.GenerateJWT(h.config.Auth.JWTSecret, user.ID, user.Email, user.Name)
+	token, err := auth.GenerateJWT(h.config.Auth.JWTSecret, user.ID, user.Email, user.Name, user.IsAdmin)
 	if err != nil {
 		log.Printf("ERROR: Failed to generate JWT: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -368,9 +369,10 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		"message": "Login successful",
 		"token":   token,
 		"user": gin.H{
-			"id":    user.ID,
-			"email": user.Email,
-			"name":  user.Name,
+			"id":       user.ID,
+			"email":    user.Email,
+			"name":     user.Name,
+			"is_admin": user.IsAdmin,
 		},
 	})
 }

@@ -15,15 +15,17 @@ type JWTClaims struct {
 	UserID    int64  `json:"user_id"`
 	UserEmail string `json:"user_email"`
 	UserName  string `json:"user_name"`
+	IsAdmin   bool   `json:"is_admin"`
 	jwt.RegisteredClaims
 }
 
 // GenerateJWT creates a new JWT token for a user
-func GenerateJWT(secret string, userID int64, email, name string) (string, error) {
+func GenerateJWT(secret string, userID int64, email, name string, isAdmin bool) (string, error) {
 	claims := JWTClaims{
 		UserID:    userID,
 		UserEmail: email,
 		UserName:  name,
+		IsAdmin:   isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -95,6 +97,7 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		c.Set("user_id", claims.UserID)
 		c.Set("user_email", claims.UserEmail)
 		c.Set("user_name", claims.UserName)
+		c.Set("is_admin", claims.IsAdmin)
 		c.Next()
 	}
 }
