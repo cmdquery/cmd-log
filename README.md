@@ -1,381 +1,333 @@
-# Log Ingestion Service
+# cmd-log
 
-A high-performance log ingestion service built in Go that efficiently collects, validates, and stores logs from various service types (Next.js, Ruby on Rails, etc.).
+A high-performance log ingestion and error tracking service built in Go. Collects, validates, and stores structured logs while providing Honeybadger-compatible error tracking with automatic fault grouping, an admin dashboard, and a TypeScript client SDK.
 
 ## Features
 
-- **HTTP Ingestion**: REST API endpoint for log ingestion
-- **Format Support**: Automatic detection and parsing of JSON and plain text logs
-- **Authentication**: API key-based authentication
-- **Rate Limiting**: Per-service rate limiting to prevent abuse
-- **Validation**: Log validation and sanitization before storage
-- **Batching**: Efficient batch processing for high throughput
-- **Efficient Storage**: TimescaleDB hypertables optimized for time-series data
+- **Log Ingestion** — REST API for single and batch log ingestion with JSON and plain text support
+- **Error Tracking** — Honeybadger-compatible notice ingestion with automatic fault grouping and fingerprinting
+- **Fault Management** — Resolve, ignore, assign, merge, tag, and comment on faults
+- **Admin Dashboard** — Vue.js SPA with dark mode for viewing errors, logs, metrics, and managing API keys
+- **Authentication** — API key-based auth for ingestion, cookie-based sessions for the admin panel
+- **Rate Limiting** — Per-API-key rate limiting to prevent abuse
+- **Batch Processing** — Configurable batching for high-throughput ingestion
+- **Time-Series Storage** — TimescaleDB hypertables optimized for time-series queries
+- **TypeScript Client SDK** — `@cmdquery/log-ingestion-next` with automatic batching, retries, and rate limit handling
 
-## Architecture
+## Tech Stack
 
-The service accepts logs via HTTP POST requests, validates and sanitizes them, batches them for efficiency, and stores them in TimescaleDB.
+| Layer          | Technology                          |
+|----------------|-------------------------------------|
+| Backend        | Go 1.21+ / Gin                      |
+| Frontend       | Vue.js 3 / Vite                     |
+| Database       | TimescaleDB (PostgreSQL)             |
+| Infrastructure | Docker / Docker Compose              |
+| Client SDK     | TypeScript (browser + Node.js)       |
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+- **Go 1.21 or later** — [Download Go](https://golang.org/dl/)
+- **Node.js 18 or later** — [Download Node.js](https://nodejs.org/) (for building the frontend)
+- **Docker Desktop** (macOS/Windows) or **Docker Engine** (Linux) — [Download Docker](https://www.docker.com/products/docker-desktop)
+- **Docker Compose** — usually included with Docker Desktop
 
-- **Go 1.21 or later** - [Download Go](https://golang.org/dl/)
-- **Node.js 18 or later** - [Download Node.js](https://nodejs.org/) (for building the frontend)
-- **Docker Desktop** (for macOS/Windows) or Docker Engine (for Linux) - [Download Docker](https://www.docker.com/products/docker-desktop)
-- **Docker Compose** - Usually included with Docker Desktop
-
-### Verify Prerequisites
-
-Check that Docker is installed and running:
+Verify Docker is installed and running:
 
 ```bash
-# Check Docker version
 docker --version
-
-# Verify Docker daemon is running
 make docker-check
 ```
 
-If Docker is not running, start Docker Desktop (macOS/Windows) or the Docker service (Linux).
-
 ## Quick Start
 
-1. **Clone the repository** (if applicable):
+1. **Clone the repository**:
    ```bash
    git clone <repository-url>
    cd cmd-log
    ```
 
-2. **Verify Docker is running**:
-   ```bash
-   make docker-check
-   ```
-   If this fails, start Docker Desktop and try again.
-
-3. **Start TimescaleDB**:
+2. **Start TimescaleDB**:
    ```bash
    make docker-up
    ```
-   This will start the TimescaleDB container in the background. The first time may take a few minutes to download the image.
 
-4. **Run database migrations**:
+3. **Run database migrations**:
    ```bash
    make migrate
    ```
-   This creates the necessary database tables and indexes.
 
-5. **Configure environment variables** (optional):
+4. **Configure environment variables** (optional):
    ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
+   make env
    ```
-   If you don't create a `.env` file, the service will use default values.
+   Edit `.env` with your settings. If you skip this step, defaults are used.
 
-6. **Build the frontend** (first time only, or when frontend changes):
-   ```bash
-   cd web
-   npm install
-   npm run build
-   cd ..
-   ```
-
-7. **Build and run the service**:
+5. **Build and run**:
    ```bash
    make build
    ./bin/server
    ```
-   
-   Or run directly without building:
+   Or run directly in development:
    ```bash
    make run
    ```
-   
-   Note: The `make build` command automatically builds the frontend. For development, you can run the frontend dev server separately:
-   ```bash
-   cd web
-   npm run dev
-   ```
 
-7. **Verify the service is running**:
+6. **Verify the service is running**:
    ```bash
    curl http://localhost:8080/health
    ```
 
-## Setup (Detailed)
-
-### Step 1: Start Docker
-
-**macOS/Windows:**
-- Open Docker Desktop application
-- Wait for Docker to start (you'll see a Docker icon in your system tray/menu bar)
-- Verify it's running: `make docker-check`
-
-**Linux:**
-- Start Docker service: `sudo systemctl start docker`
-- Enable Docker to start on boot: `sudo systemctl enable docker`
-- Verify it's running: `make docker-check`
-
-### Step 2: Start Database
-
-```bash
-make docker-up
-```
-
-This command will:
-- Check if Docker daemon is running (and show a helpful error if not)
-- Pull the TimescaleDB image if needed
-- Start the TimescaleDB container on port 5432
-
-**Troubleshooting:**
-- If you see "Docker daemon is not running", start Docker Desktop and try again
-- If port 5432 is already in use, stop the conflicting service or modify `docker-compose.yml` to use a different port
-
-### Step 3: Run Migrations
-
-```bash
-make migrate
-```
-
-This creates the database schema with TimescaleDB hypertables optimized for time-series data.
-
-### Step 4: Configure the Service
-
-Create a `.env` file (optional - defaults will be used if not provided):
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your settings. At minimum, you may want to set:
-- `LOG_INGESTION_API_KEYS`: Comma-separated list of API keys for authentication
-
-### Step 5: Run the Service
-
-**Option 1: Build and run**
-```bash
-make build
-./bin/server
-```
-
-**Option 2: Run directly (development)**
-```bash
-make run
-```
-
-The service will start on `http://localhost:8080` by default.
+The admin dashboard is served at `http://localhost:8080` once the frontend is built.
 
 ## Configuration
 
-Configuration can be provided via:
-- Environment variables (prefixed with `LOG_INGESTION_`)
-- YAML config file (`config.yaml`)
+Configuration is provided via environment variables (prefixed with `LOG_INGESTION_`) or a `config.yaml` file.
 
-### Environment Variables
+### Server
 
-- `LOG_INGESTION_SERVER_PORT`: Server port (default: 8080)
-- `LOG_INGESTION_SERVER_HOST`: Server host (default: 0.0.0.0)
-- `LOG_INGESTION_DB_HOST`: Database host (default: localhost)
-- `LOG_INGESTION_DB_PORT`: Database port (default: 5432)
-- `LOG_INGESTION_DB_USER`: Database user (default: postgres)
-- `LOG_INGESTION_DB_PASSWORD`: Database password (default: postgres)
-- `LOG_INGESTION_DB_NAME`: Database name (default: logs)
-- `LOG_INGESTION_BATCH_SIZE`: Batch size (default: 1000)
-- `LOG_INGESTION_BATCH_FLUSH_INTERVAL`: Flush interval (default: 5s)
-- `LOG_INGESTION_RATELIMIT_ENABLED`: Enable rate limiting (default: true)
-- `LOG_INGESTION_RATELIMIT_DEFAULT_RPS`: Default requests per second (default: 100)
-- `LOG_INGESTION_RATELIMIT_BURST`: Burst size (default: 200)
-- `LOG_INGESTION_API_KEYS`: Comma-separated list of API keys
+| Variable | Description | Default |
+|---|---|---|
+| `LOG_INGESTION_SERVER_PORT` | Server port | `8080` |
+| `LOG_INGESTION_SERVER_HOST` | Server host | `0.0.0.0` |
 
-## API Endpoints
+### Database
 
-### Health Check
+| Variable | Description | Default |
+|---|---|---|
+| `LOG_INGESTION_DB_HOST` | Database host | `localhost` |
+| `LOG_INGESTION_DB_PORT` | Database port | `5432` |
+| `LOG_INGESTION_DB_USER` | Database user | `postgres` |
+| `LOG_INGESTION_DB_PASSWORD` | Database password | `postgres` |
+| `LOG_INGESTION_DB_NAME` | Database name | `logs` |
+| `LOG_INGESTION_DB_SSLMODE` | SSL mode | `disable` |
+
+### Batch Processing
+
+| Variable | Description | Default |
+|---|---|---|
+| `LOG_INGESTION_BATCH_SIZE` | Batch size for log ingestion | `1000` |
+| `LOG_INGESTION_BATCH_FLUSH_INTERVAL` | Flush interval | `5s` |
+
+### Rate Limiting
+
+| Variable | Description | Default |
+|---|---|---|
+| `LOG_INGESTION_RATELIMIT_ENABLED` | Enable rate limiting | `true` |
+| `LOG_INGESTION_RATELIMIT_DEFAULT_RPS` | Default requests per second | `100` |
+| `LOG_INGESTION_RATELIMIT_BURST` | Burst size | `200` |
+
+### Authentication
+
+| Variable | Description | Default |
+|---|---|---|
+| `LOG_INGESTION_API_KEYS` | Comma-separated API keys for log ingestion | — |
+| `LOG_INGESTION_ADMIN_API_KEYS` | Comma-separated admin API keys (falls back to `LOG_INGESTION_API_KEYS`) | — |
+
+## API Overview
+
+All endpoints except `/health` and `/admin/login` require authentication via `X-API-Key` header or `Authorization: Bearer` token.
+
+### Health
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Service health check (no auth) |
+
+### Log Ingestion
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/logs` | Ingest a single log entry |
+| `POST` | `/api/v1/logs/batch` | Ingest a batch of log entries |
+
+### Error Notices
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/notices` | Ingest an error notice (Honeybadger-compatible) |
+
+### Faults
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/faults` | List faults with search and filtering |
+| `GET` | `/api/v1/faults/:id` | Get fault details |
+| `PATCH` | `/api/v1/faults/:id` | Update a fault |
+| `DELETE` | `/api/v1/faults/:id` | Delete a fault |
+| `POST` | `/api/v1/faults/:id/resolve` | Resolve a fault |
+| `POST` | `/api/v1/faults/:id/unresolve` | Unresolve a fault |
+| `POST` | `/api/v1/faults/:id/ignore` | Ignore a fault |
+| `POST` | `/api/v1/faults/:id/assign` | Assign a fault to a user |
+| `POST` | `/api/v1/faults/:id/tags` | Add tags to a fault |
+| `PUT` | `/api/v1/faults/:id/tags` | Replace fault tags |
+| `POST` | `/api/v1/faults/:id/merge` | Merge faults |
+| `GET` | `/api/v1/faults/:id/notices` | Get fault occurrences |
+| `GET` | `/api/v1/faults/:id/stats` | Get fault statistics |
+| `GET` | `/api/v1/faults/:id/comments` | Get fault comments |
+| `POST` | `/api/v1/faults/:id/comments` | Create a comment |
+| `GET` | `/api/v1/faults/:id/history` | Get fault history |
+| `GET` | `/api/v1/users` | List users |
+
+### Admin
+
+Admin endpoints use cookie-based session authentication. Log in via `POST /admin/login` first.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/admin/login` | Admin login (no auth) |
+| `GET` | `/admin/health` | Detailed health status |
+| `GET` | `/admin/metrics` | Service metrics |
+| `GET` | `/admin/logs/recent` | Recent log entries |
+| `GET` | `/admin/logs/:id` | Get a log by ID |
+| `GET` | `/admin/stats` | Aggregated statistics |
+| `GET` | `/admin/api/keys` | List API keys |
+| `POST` | `/admin/api/keys` | Create an API key |
+| `DELETE` | `/admin/api/keys/:id` | Delete an API key |
+
+## Error Tracking
+
+cmd-log provides Honeybadger-compatible error tracking. When a notice is ingested via `POST /api/v1/notices`, the service:
+
+1. Extracts the error class, message, and location from the notice payload.
+2. Generates a fingerprint from the error class, location, and environment.
+3. Matches it against existing faults — if a matching fault exists, it increments the occurrence count; otherwise it creates a new fault.
+4. Stores the full notice (including backtrace, request context, and server info) linked to the fault.
+
+### Fault Lifecycle
+
+- **Open** — new or recurring faults that need attention.
+- **Resolved** — faults marked as fixed. If a new notice matches a resolved fault, it reopens automatically.
+- **Ignored** — faults intentionally dismissed.
+
+Faults can also be assigned to users, tagged, commented on, and merged with other faults. A full history of state changes is tracked.
+
+## Admin Dashboard
+
+The Vue.js admin dashboard is served from the root URL and provides:
+
+- **Error Viewer** — browse, search, and filter faults; view individual fault details with backtrace and breadcrumbs
+- **Log Viewer** — browse recent log entries with filtering
+- **Metrics** — service health and performance metrics
+- **API Key Management** — create and revoke API keys
+
+Access the dashboard at `http://localhost:8080` after building the frontend and starting the server.
+
+## Client SDK
+
+The TypeScript client library [`@cmdquery/log-ingestion-next`](integrations/cmd-log-client/) works in both browser and Node.js environments.
+
+```typescript
+import { LogClient } from '@cmdquery/log-ingestion-next';
+
+const client = new LogClient({
+  apiUrl: 'https://your-service.com',
+  apiKey: 'your-api-key',
+  service: 'my-service',
+});
+
+await client.info('Application started');
+await client.error('Something went wrong', { userId: '123' });
+
+// Flush remaining logs on shutdown
+await client.destroy();
+```
+
+Key features: automatic batching, retry with exponential backoff, rate limit handling, and queue management for failed logs.
+
+See the [SDK README](integrations/cmd-log-client/README.md) for full documentation.
+
+## Integration Guides
+
+- [React / Next.js](integrations/react-nextjs.md)
+- [Node.js](integrations/nodejs.md)
+- [Ruby on Rails](integrations/ruby-on-rails.md)
+
+## Deployment
+
+Multiple deployment options are available:
+
+- **Docker Compose (development)** — `docker-compose.yml` includes a TimescaleDB container
+- **Docker Compose (production)** — `docker-compose.prod.yml` connects to an external managed database
+- **systemd** — service files and setup scripts in `deploy/`
+- **DigitalOcean** — automated deployment via `make deploy`
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full guide and [DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md) for DigitalOcean-specific instructions.
+
+### Deployment Make Targets
 
 ```bash
-GET /health
+make deploy          # Interactive deployment to a DigitalOcean droplet
+make deploy-quick    # Quick deploy using DROPLET_IP and DROPLET_USER env vars
+make deploy-status   # Check remote deployment status
+make deploy-logs     # Tail remote deployment logs
 ```
 
-Returns the health status of the service.
+## Database Schema
 
-### Ingest Single Log
+The service uses TimescaleDB with the following tables:
 
-```bash
-POST /api/v1/logs
-Content-Type: application/json
-X-API-Key: your-api-key
+| Table | Purpose |
+|---|---|
+| `logs` | Time-series log entries (TimescaleDB hypertable) |
+| `api_keys` | API key management with soft-delete support |
+| `users` | User accounts for fault assignment |
+| `faults` | Grouped errors with fingerprint-based deduplication |
+| `notices` | Individual error occurrences linked to faults |
+| `fault_history` | Audit trail of fault state changes |
+| `fault_comments` | Comments on faults |
 
-{
-  "log": {
-    "timestamp": "2024-01-01T12:00:00Z",
-    "service": "my-service",
-    "level": "INFO",
-    "message": "Application started",
-    "metadata": {
-      "user_id": "123",
-      "request_id": "abc-123"
-    }
-  }
-}
-```
-
-### Ingest Batch Logs
-
-```bash
-POST /api/v1/logs/batch
-Content-Type: application/json
-X-API-Key: your-api-key
-
-{
-  "logs": [
-    {
-      "timestamp": "2024-01-01T12:00:00Z",
-      "service": "my-service",
-      "level": "INFO",
-      "message": "Log entry 1"
-    },
-    {
-      "timestamp": "2024-01-01T12:00:01Z",
-      "service": "my-service",
-      "level": "ERROR",
-      "message": "Log entry 2"
-    }
-  ]
-}
-```
-
-## Log Format
-
-### JSON Format
-
-The service accepts structured JSON logs:
-
-```json
-{
-  "timestamp": "2024-01-01T12:00:00Z",
-  "service": "my-service",
-  "level": "INFO",
-  "message": "Log message",
-  "metadata": {
-    "key": "value"
-  }
-}
-```
-
-### Plain Text Format
-
-The service also accepts plain text logs in various formats:
-
-```
-[2024-01-01T12:00:00Z] INFO my-service: Log message
-INFO my-service: Log message
-my-service [INFO]: Log message
-```
-
-## Authentication
-
-All API endpoints (except `/health`) require authentication via API key. Provide the API key in one of the following ways:
-
-- Header: `X-API-Key: your-api-key`
-- Authorization header: `Authorization: Bearer your-api-key`
-
-## Rate Limiting
-
-Rate limiting is enabled by default. Each API key has its own rate limit bucket. Default limits:
-- Requests per second: 100
-- Burst size: 200
+Migrations are located in `migrations/` and applied with `make migrate`.
 
 ## Development
 
-### Running Tests
+### Make Targets
 
 ```bash
-make test
-```
-
-### Building
-
-Build both frontend and backend:
-```bash
-make build
-```
-
-Build only the frontend:
-```bash
-cd web
-npm install
-npm run build
-```
-
-Build only the backend:
-```bash
-go build -o bin/server ./cmd/server
+make help            # Show all available targets
+make build           # Build frontend and backend
+make build-frontend  # Build the Vue frontend only
+make run             # Run the Go server directly
+make test            # Run tests
+make clean           # Remove build artifacts
+make docker-check    # Check if Docker daemon is running
+make docker-up       # Start TimescaleDB container
+make docker-down     # Stop TimescaleDB container
+make migrate         # Run database migrations
+make setup           # docker-up + migrate
+make env             # Copy .env.example to .env
 ```
 
 ### Frontend Development
 
 For frontend development with hot reload:
+
 ```bash
 cd web
 npm install
 npm run dev
 ```
 
-This will start the Vite dev server on `http://localhost:5173` with proxy to the Go backend.
-
-### Docker Commands
-
-```bash
-make docker-check # Check if Docker daemon is running
-make docker-up    # Start TimescaleDB container
-make docker-down  # Stop TimescaleDB container
-```
+This starts the Vite dev server on `http://localhost:5173` with a proxy to the Go backend.
 
 ### Troubleshooting
 
 **Docker daemon not running:**
-```bash
-# Check Docker status
-make docker-check
-
-# If Docker is not running:
-# - macOS/Windows: Open Docker Desktop application
-# - Linux: sudo systemctl start docker
-```
+- macOS/Windows: open Docker Desktop
+- Linux: `sudo systemctl start docker`
+- Verify: `make docker-check`
 
 **Port 5432 already in use:**
-- Stop the conflicting PostgreSQL service, or
-- Modify `docker-compose.yml` to use a different port (e.g., `5433:5432`)
+- Stop the conflicting PostgreSQL service, or change the port in `docker-compose.yml`
 
 **Database connection errors:**
-- Ensure TimescaleDB container is running: `docker ps`
+- Ensure TimescaleDB is running: `docker ps`
 - Check container logs: `docker logs log-ingestion-timescaledb`
-- Verify database is healthy: `docker-compose ps`
+- Verify health: `docker-compose ps`
 
 **Migration failures:**
-- Ensure the database container is fully started (wait 10-15 seconds after `docker-up`)
-- Check database logs for errors
-- Try running migrations again: `make migrate`
-
-## Database Schema
-
-The service uses TimescaleDB with a hypertable for efficient time-series storage:
-
-- `id`: Primary key
-- `timestamp`: Log timestamp (partitioned by this field)
-- `service`: Service name
-- `level`: Log level (DEBUG, INFO, WARN, ERROR, etc.)
-- `message`: Log message
-- `metadata`: JSONB field for additional metadata
-- `created_at`: Record creation timestamp
-
-Indexes are created on:
-- `timestamp` (descending)
-- `service`
-- `level`
-- `(timestamp, service)` composite index
-- `metadata` (GIN index for JSON queries)
+- Wait 10-15 seconds after `docker-up` for the database to be ready
+- Retry: `make migrate`
 
 ## License
 
 MIT
-
