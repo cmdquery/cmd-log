@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "socket"
+require "uri"
 
 module CmdLog
   # Client for interacting with the cmd-log fault / error-tracking API.
@@ -28,7 +29,7 @@ module CmdLog
     NOTIFIER_DEFAULTS = {
       name: "cmd_log-ruby",
       version: CmdLog::VERSION,
-      url: "https://github.com/YOUR_USERNAME/cmd-log"
+      url: "https://github.com/cmdquery/cmd-log"
     }.freeze
 
     # @param api_url         [String]     Base URL of the cmd-log service
