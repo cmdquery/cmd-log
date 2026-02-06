@@ -96,7 +96,9 @@ module CmdLog
     # Build and send the raw Net::HTTP request.
     def execute_request(method, path, body)
       uri = @base_uri.dup
-      uri.path = path
+      path_part, query_part = path.split("?", 2)
+      uri.path  = path_part
+      uri.query = query_part
 
       req = build_request(method, uri, body)
       connection.request(req)

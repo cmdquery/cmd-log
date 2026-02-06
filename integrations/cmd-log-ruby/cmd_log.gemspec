@@ -24,4 +24,8 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   # Zero runtime dependencies -- uses only Ruby stdlib (net/http, json, uri, etc.)
+
+  spec.add_development_dependency "minitest", "~> 5.0"
+  spec.add_development_dependency "webmock", "~> 3.0"
+  spec.add_development_dependency "rake", "~> 13.0"
 end
