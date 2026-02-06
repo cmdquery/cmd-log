@@ -17,8 +17,25 @@ function setAuthToken(token) {
 // Remove auth token (logout)
 function removeAuthToken() {
   localStorage.removeItem('auth_token')
+  localStorage.removeItem('user_info')
   // Also clear the cookie
   document.cookie = 'auth_token=; Max-Age=0; path=/'
+}
+
+// Get stored user info
+function getUserInfo() {
+  try {
+    const info = localStorage.getItem('user_info')
+    return info ? JSON.parse(info) : null
+  } catch {
+    return null
+  }
+}
+
+// Check if current user is an admin
+function isAdmin() {
+  const user = getUserInfo()
+  return user ? !!user.is_admin : false
 }
 
 // Check if user is authenticated
@@ -142,6 +159,9 @@ export async function login(email, password) {
   const data = await response.json()
   if (response.ok && data.token) {
     setAuthToken(data.token)
+    if (data.user) {
+      localStorage.setItem('user_info', JSON.stringify(data.user))
+    }
     return data
   }
 
@@ -198,4 +218,4 @@ export async function deleteAPIKey(id) {
   })
 }
 
-export { getAuthToken, setAuthToken, removeAuthToken, isAuthenticated, fetchWithAuth }
+export { getAuthToken, setAuthToken, removeAuthToken, isAuthenticated, isAdmin, getUserInfo, fetchWithAuth }

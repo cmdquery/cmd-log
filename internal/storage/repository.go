@@ -260,12 +260,13 @@ func (r *Repository) GetLogByID(ctx context.Context, id int64) (*models.LogEntry
 
 // APIKey represents an API key in the database
 type APIKey struct {
-	ID          int64     `json:"id"`
-	Key         string    `json:"key"` // Only returned when creating
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	IsActive    bool      `json:"is_active"`
+	ID              int64     `json:"id"`
+	Key             string    `json:"key"` // Only returned when creating
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	CreatedAt       time.Time `json:"created_at"`
+	IsActive        bool      `json:"is_active"`
+	CreatedByUserID *int64    `json:"created_by_user_id"`
 }
 
 // TimeSeriesPoint represents a data point for time series charts
@@ -321,21 +322,22 @@ func (r *Repository) GetTimeSeriesData(ctx context.Context, timeRange time.Durat
 }
 
 // CreateAPIKey creates a new API key in the database
-func (r *Repository) CreateAPIKey(ctx context.Context, name, description, key string) (*APIKey, error) {
+func (r *Repository) CreateAPIKey(ctx context.Context, name, description, key string, createdByUserID int64) (*APIKey, error) {
 	query := `
-		INSERT INTO api_keys (key, name, description, created_at, is_active)
-		VALUES ($1, $2, $3, NOW(), TRUE)
-		RETURNING id, key, name, description, created_at, is_active
+		INSERT INTO api_keys (key, name, description, created_at, is_active, created_by_user_id)
+		VALUES ($1, $2, $3, NOW(), TRUE, $4)
+		RETURNING id, key, name, description, created_at, is_active, created_by_user_id
 	`
 	
 	var apiKey APIKey
-	err := r.pool.QueryRow(ctx, query, key, name, description).Scan(
+	err := r.pool.QueryRow(ctx, query, key, name, description, createdByUserID).Scan(
 		&apiKey.ID,
 		&apiKey.Key,
 		&apiKey.Name,
 		&apiKey.Description,
 		&apiKey.CreatedAt,
 		&apiKey.IsActive,
+		&apiKey.CreatedByUserID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating API key: %w", err)
@@ -344,15 +346,29 @@ func (r *Repository) CreateAPIKey(ctx context.Context, name, description, key st
 	return &apiKey, nil
 }
 
-// ListAPIKeys returns all API keys (including inactive ones)
-func (r *Repository) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
-	query := `
-		SELECT id, name, description, created_at, is_active
-		FROM api_keys
-		ORDER BY created_at DESC
-	`
-	
-	rows, err := r.pool.Query(ctx, query)
+// ListAPIKeys returns API keys. If userID is nil, returns all keys (admin).
+// If userID is provided, returns only keys created by that user.
+func (r *Repository) ListAPIKeys(ctx context.Context, userID *int64) ([]APIKey, error) {
+	var query string
+	var args []interface{}
+
+	if userID != nil {
+		query = `
+			SELECT id, name, description, created_at, is_active, created_by_user_id
+			FROM api_keys
+			WHERE created_by_user_id = $1
+			ORDER BY created_at DESC
+		`
+		args = append(args, *userID)
+	} else {
+		query = `
+			SELECT id, name, description, created_at, is_active, created_by_user_id
+			FROM api_keys
+			ORDER BY created_at DESC
+		`
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error listing API keys: %w", err)
 	}
@@ -367,6 +383,7 @@ func (r *Repository) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
 			&key.Description,
 			&key.CreatedAt,
 			&key.IsActive,
+			&key.CreatedByUserID,
 		)
 		if err != nil {
 			return nil, err
@@ -377,21 +394,36 @@ func (r *Repository) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
 	return keys, nil
 }
 
-// DeleteAPIKey soft deletes an API key by setting is_active to false
-func (r *Repository) DeleteAPIKey(ctx context.Context, id int64) error {
-	query := `
-		UPDATE api_keys
-		SET is_active = FALSE
-		WHERE id = $1
-	`
-	
-	result, err := r.pool.Exec(ctx, query, id)
+// DeleteAPIKey soft deletes an API key by setting is_active to false.
+// If userID is provided, only deletes if the key belongs to that user.
+// If userID is nil (admin), deletes any key regardless of ownership.
+func (r *Repository) DeleteAPIKey(ctx context.Context, id int64, userID *int64) error {
+	var query string
+	var args []interface{}
+
+	if userID != nil {
+		query = `
+			UPDATE api_keys
+			SET is_active = FALSE
+			WHERE id = $1 AND created_by_user_id = $2
+		`
+		args = []interface{}{id, *userID}
+	} else {
+		query = `
+			UPDATE api_keys
+			SET is_active = FALSE
+			WHERE id = $1
+		`
+		args = []interface{}{id}
+	}
+
+	result, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("error deleting API key: %w", err)
 	}
 	
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("API key with id %d not found", id)
+		return fmt.Errorf("API key with id %d not found or not authorized", id)
 	}
 	
 	return nil

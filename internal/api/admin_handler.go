@@ -377,11 +377,24 @@ func (h *AdminHandler) Login(c *gin.Context) {
 	})
 }
 
-// ListAPIKeys returns all API keys as JSON (keys are masked for security)
+// ListAPIKeys returns API keys as JSON (keys are masked for security).
+// Admins see all keys; non-admins see only keys they created.
 func (h *AdminHandler) ListAPIKeys(c *gin.Context) {
 	ctx := context.Background()
-	
-	keys, err := h.repository.ListAPIKeys(ctx)
+
+	isAdmin, _ := c.Get("is_admin")
+	userID, _ := c.Get("user_id")
+
+	var keys []storage.APIKey
+	var err error
+
+	if isAdmin == true {
+		keys, err = h.repository.ListAPIKeys(ctx, nil)
+	} else {
+		uid := userID.(int64)
+		keys, err = h.repository.ListAPIKeys(ctx, &uid)
+	}
+
 	if err != nil {
 		log.Printf("ERROR: Failed to list API keys: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -395,11 +408,12 @@ func (h *AdminHandler) ListAPIKeys(c *gin.Context) {
 	responseKeys := make([]gin.H, len(keys))
 	for i, key := range keys {
 		responseKeys[i] = gin.H{
-			"id":          key.ID,
-			"name":        key.Name,
-			"description": key.Description,
-			"created_at":  key.CreatedAt,
-			"is_active":   key.IsActive,
+			"id":                 key.ID,
+			"name":               key.Name,
+			"description":        key.Description,
+			"created_at":         key.CreatedAt,
+			"is_active":          key.IsActive,
+			"created_by_user_id": key.CreatedByUserID,
 		}
 	}
 	
@@ -437,9 +451,11 @@ func (h *AdminHandler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 	apiKey := base64.URLEncoding.EncodeToString(keyBytes)
+
+	userID := c.GetInt64("user_id")
 	
 	ctx := context.Background()
-	createdKey, err := h.repository.CreateAPIKey(ctx, req.Name, req.Description, apiKey)
+	createdKey, err := h.repository.CreateAPIKey(ctx, req.Name, req.Description, apiKey, userID)
 	if err != nil {
 		log.Printf("ERROR: Failed to create API key in database: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -453,17 +469,19 @@ func (h *AdminHandler) CreateAPIKey(c *gin.Context) {
 	
 	// Return the full key only once (for the user to copy)
 	c.JSON(http.StatusOK, gin.H{
-		"id":          createdKey.ID,
-		"key":         createdKey.Key,
-		"name":        createdKey.Name,
-		"description": createdKey.Description,
-		"created_at":  createdKey.CreatedAt,
-		"is_active":   createdKey.IsActive,
-		"message":     "API key created successfully. Please copy it now as it won't be shown again.",
+		"id":                 createdKey.ID,
+		"key":                createdKey.Key,
+		"name":               createdKey.Name,
+		"description":        createdKey.Description,
+		"created_at":         createdKey.CreatedAt,
+		"is_active":          createdKey.IsActive,
+		"created_by_user_id": createdKey.CreatedByUserID,
+		"message":            "API key created successfully. Please copy it now as it won't be shown again.",
 	})
 }
 
-// DeleteAPIKey deletes an API key (soft delete)
+// DeleteAPIKey deletes an API key (soft delete).
+// Admins can delete any key; non-admins can only delete keys they created.
 func (h *AdminHandler) DeleteAPIKey(c *gin.Context) {
 	idStr := c.Param("id")
 	var id int64
@@ -473,12 +491,22 @@ func (h *AdminHandler) DeleteAPIKey(c *gin.Context) {
 		})
 		return
 	}
-	
+
+	isAdmin, _ := c.Get("is_admin")
 	ctx := context.Background()
-	if err := h.repository.DeleteAPIKey(ctx, id); err != nil {
+
+	var deleteErr error
+	if isAdmin == true {
+		deleteErr = h.repository.DeleteAPIKey(ctx, id, nil)
+	} else {
+		uid := c.GetInt64("user_id")
+		deleteErr = h.repository.DeleteAPIKey(ctx, id, &uid)
+	}
+
+	if deleteErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to delete API key",
-			"details": err.Error(),
+			"details": deleteErr.Error(),
 		})
 		return
 	}

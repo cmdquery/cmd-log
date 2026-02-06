@@ -59,6 +59,7 @@
               <th>ID</th>
               <th>Name</th>
               <th>Description</th>
+              <th v-if="userIsAdmin">Created By</th>
               <th>Created</th>
               <th>Status</th>
               <th>Actions</th>
@@ -69,6 +70,7 @@
               <td class="text-muted">{{ key.id }}</td>
               <td>{{ key.name }}</td>
               <td class="text-muted">{{ key.description || '—' }}</td>
+              <td v-if="userIsAdmin" class="text-muted">{{ key.created_by_user_id ?? '—' }}</td>
               <td class="text-muted">{{ formatDate(key.created_at) }}</td>
               <td>
                 <span :class="['badge', key.is_active ? 'badge--success' : 'badge--error']">
@@ -125,7 +127,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { listAPIKeys, createAPIKey, deleteAPIKey } from '../services/api'
+import { listAPIKeys, createAPIKey, deleteAPIKey, isAdmin } from '../services/api'
 
 const keys = ref([])
 const loading = ref(false)
@@ -134,6 +136,7 @@ const creating = ref(false)
 const deleting = ref(null)
 const showModal = ref(false)
 const createdKeyValue = ref('')
+const userIsAdmin = isAdmin()
 
 const newKey = ref({
   name: '',
