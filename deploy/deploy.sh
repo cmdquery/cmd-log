@@ -472,13 +472,19 @@ print_info "Running database migrations against managed database..."
 # Check if psql is available on the server, if not, we'll need to run migrations from within a container
 if ssh "${DROPLET_USER}@${DROPLET_IP}" "command -v psql >/dev/null 2>&1"; then
     # Use psql directly on server
-    ssh "${DROPLET_USER}@${DROPLET_IP}" "PGPASSWORD='${DB_PASSWORD}' psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f ${APP_DIR}/migrations/001_create_logs_table.sql" || true
-    ssh "${DROPLET_USER}@${DROPLET_IP}" "PGPASSWORD='${DB_PASSWORD}' psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f ${APP_DIR}/migrations/002_create_api_keys_table.sql" || true
+    for f in $(ls "${PROJECT_ROOT}/migrations/"*.sql | sort); do
+        fname=$(basename "$f")
+        print_info "Running migration: ${fname}"
+        ssh "${DROPLET_USER}@${DROPLET_IP}" "PGPASSWORD='${DB_PASSWORD}' psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f ${APP_DIR}/migrations/${fname}" || true
+    done
 else
     # Use a temporary postgres container to run migrations
     print_info "psql not found on server, using temporary postgres container for migrations..."
-    ssh "${DROPLET_USER}@${DROPLET_IP}" "docker run --rm -v ${APP_DIR}/migrations:/migrations -e PGPASSWORD='${DB_PASSWORD}' postgres:16-alpine psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f /migrations/001_create_logs_table.sql" || true
-    ssh "${DROPLET_USER}@${DROPLET_IP}" "docker run --rm -v ${APP_DIR}/migrations:/migrations -e PGPASSWORD='${DB_PASSWORD}' postgres:16-alpine psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f /migrations/002_create_api_keys_table.sql" || true
+    for f in $(ls "${PROJECT_ROOT}/migrations/"*.sql | sort); do
+        fname=$(basename "$f")
+        print_info "Running migration: ${fname}"
+        ssh "${DROPLET_USER}@${DROPLET_IP}" "docker run --rm -v ${APP_DIR}/migrations:/migrations -e PGPASSWORD='${DB_PASSWORD}' postgres:16-alpine psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f /migrations/${fname}" || true
+    done
 fi
 print_success "Migrations completed"
 
