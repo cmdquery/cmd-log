@@ -1,10 +1,12 @@
 # @cmdquery/log-ingestion-next
 
-Client library for sending logs to the cmd-log ingestion service. Works in both browser and Node.js environments.
+Client library for log ingestion and error tracking with the cmd-log service. Works in both browser and Node.js environments.
 
 ## Features
 
-- ✅ **Automatic Batching** - Efficiently batch logs before sending
+- ✅ **Log Ingestion** - Send structured logs with automatic batching
+- ✅ **Error Tracking** - Report errors with stack traces (Honeybadger-compatible)
+- ✅ **Fault Management** - List, resolve, ignore, assign, tag, and merge faults
 - ✅ **Retry Logic** - Exponential backoff for failed requests
 - ✅ **Rate Limit Handling** - Automatic handling of 429 responses
 - ✅ **Queue Management** - In-memory queue for batched logs
@@ -184,6 +186,204 @@ interface LogClientConfig {
   onError?: (error: Error) => void;
 }
 ```
+
+---
+
+## NotifierClient
+
+The `NotifierClient` provides error reporting and full fault management. Errors are sent as Honeybadger-compatible notices and automatically grouped into faults by the server.
+
+### Basic Error Reporting
+
+```typescript
+import { NotifierClient } from '@cmdquery/log-ingestion-next';
+
+const notifier = new NotifierClient({
+  apiUrl: 'https://your-service.com',
+  apiKey: 'your-api-key',
+});
+
+// Report an error (stack trace is captured automatically)
+try {
+  dangerousWork();
+} catch (err) {
+  await notifier.notify(err as Error);
+}
+
+// Report with a plain string
+await notifier.notify('Something unexpected happened');
+```
+
+### Notifier Configuration
+
+```typescript
+const notifier = new NotifierClient({
+  apiUrl: 'https://your-service.com',       // Required: API URL
+  apiKey: 'your-api-key',                   // Required: API key
+  notifier: {                               // Override notifier metadata
+    name: 'my-app',
+    version: '1.0.0',
+    url: 'https://github.com/my/app',
+  },
+  defaultServer: {                          // Sent with every notice
+    environment_name: 'production',
+    hostname: 'web-01',
+    revision: 'abc123',
+  },
+  defaultContext: {                          // Merged into request.context
+    region: 'us-east-1',
+  },
+  onError: (error) => {                     // Error callback
+    console.error('Notifier error:', error);
+  },
+});
+```
+
+### Notify with Extra Context
+
+```typescript
+await notifier.notify(err as Error, {
+  errorClass: 'PaymentError',              // Override error class name
+  context: { userId: '42', plan: 'pro' },  // Merged into request.context
+  request: {
+    url: '/api/checkout',
+    component: 'PaymentController',
+    action: 'create',
+    params: { amount: 100 },
+  },
+  server: {
+    environment_name: 'production',
+    revision: 'abc123',
+  },
+  breadcrumbs: {
+    enabled: true,
+    trail: [
+      { category: 'navigation', message: 'Visited /checkout', time: new Date().toISOString() },
+    ],
+  },
+});
+```
+
+### Send a Raw Notice
+
+```typescript
+import type { NoticeRequest } from '@cmdquery/log-ingestion-next';
+
+const notice: NoticeRequest = {
+  notifier: { name: 'my-app', version: '1.0.0', url: '' },
+  error: {
+    class: 'TypeError',
+    message: 'Cannot read property x of undefined',
+    backtrace: [
+      { file: 'src/index.ts', line: 42, function: 'handleRequest' },
+    ],
+  },
+};
+
+const { id, fault_id } = await notifier.sendNotice(notice);
+```
+
+### Fault Management
+
+```typescript
+// List faults (with optional search and pagination)
+const { faults, total } = await notifier.listFaults('TypeError', 20, 0);
+
+// Get a single fault
+const fault = await notifier.getFault(42);
+
+// Update a fault
+await notifier.updateFault(42, { environment: 'staging' });
+
+// Delete a fault
+await notifier.deleteFault(42);
+```
+
+### Fault Actions
+
+```typescript
+// Resolve / unresolve
+await notifier.resolveFault(42);
+await notifier.unresolveFault(42);
+
+// Ignore
+await notifier.ignoreFault(42);
+
+// Assign to a user (pass null to unassign)
+await notifier.assignFault(42, 7);
+await notifier.assignFault(42, null);
+
+// Tags
+await notifier.addFaultTags(42, ['critical', 'payments']);
+await notifier.replaceFaultTags(42, ['low-priority']);
+
+// Merge fault 42 into fault 99
+await notifier.mergeFaults(42, 99);
+```
+
+### Fault Sub-Resources
+
+```typescript
+// Individual error occurrences
+const { notices } = await notifier.getFaultNotices(42, 10, 0);
+
+// Statistics
+const stats = await notifier.getFaultStats(42);
+
+// Comments
+const { comments } = await notifier.getFaultComments(42);
+await notifier.createFaultComment(42, 'Looking into this', 7);
+
+// Audit history
+const { history } = await notifier.getFaultHistory(42);
+
+// Users
+const { users } = await notifier.getUsers();
+```
+
+### NotifierClient API Reference
+
+#### Constructor
+
+```typescript
+new NotifierClient(config: NotifierClientConfig)
+```
+
+#### Notice Methods
+
+- `notify(error: Error | string, options?: NotifyOptions): Promise<NoticeResponse>`
+- `sendNotice(notice: NoticeRequest): Promise<NoticeResponse>`
+
+#### Fault CRUD
+
+- `listFaults(query?: string, limit?: number, offset?: number): Promise<FaultListResponse>`
+- `getFault(id: number): Promise<Fault>`
+- `updateFault(id: number, updates: Partial<Fault>): Promise<Fault>`
+- `deleteFault(id: number): Promise<MessageResponse>`
+
+#### Fault Actions
+
+- `resolveFault(id: number): Promise<Fault>`
+- `unresolveFault(id: number): Promise<Fault>`
+- `ignoreFault(id: number): Promise<Fault>`
+- `assignFault(id: number, userId: number | null): Promise<Fault>`
+- `addFaultTags(id: number, tags: string[]): Promise<Fault>`
+- `replaceFaultTags(id: number, tags: string[]): Promise<Fault>`
+- `mergeFaults(sourceId: number, targetId: number): Promise<MessageResponse>`
+
+#### Fault Sub-Resources
+
+- `getFaultNotices(id: number, limit?: number, offset?: number): Promise<NoticesResponse>`
+- `getFaultStats(id: number): Promise<Record<string, unknown>>`
+- `getFaultComments(id: number): Promise<CommentsResponse>`
+- `createFaultComment(id: number, comment: string, userId: number): Promise<Comment>`
+- `getFaultHistory(id: number): Promise<HistoryResponse>`
+
+#### Other
+
+- `getUsers(): Promise<UsersResponse>`
+
+---
 
 ## Publishing
 

@@ -1,30 +1,36 @@
 /**
  * @cmd-log/client
- * 
- * Client library for sending logs to the cmd-log ingestion service.
- * 
- * Features:
- * - Automatic batching for efficient log transmission
- * - Retry logic with exponential backoff
- * - Rate limit handling
- * - Queue management
- * - Works in both browser and Node.js environments
- * 
+ *
+ * Client library for the cmd-log service.
+ *
+ * - **LogClient** -- send structured logs (batching, retries, rate-limit handling)
+ * - **NotifierClient** -- report errors and manage faults (Honeybadger-compatible)
+ *
+ * Works in both browser and Node.js (18+) environments.
+ *
  * @example
  * ```typescript
- * import { LogClient } from '@cmd-log/client';
- * 
- * const client = new LogClient({
+ * import { LogClient, NotifierClient } from '@cmdquery/log-ingestion-next';
+ *
+ * const logs = new LogClient({
  *   apiUrl: 'https://your-service.com',
  *   apiKey: 'your-api-key',
  *   service: 'my-service',
  * });
- * 
- * await client.info('Application started');
- * await client.error('Something went wrong', { error: 'details' });
+ *
+ * await logs.info('Application started');
+ *
+ * const notifier = new NotifierClient({
+ *   apiUrl: 'https://your-service.com',
+ *   apiKey: 'your-api-key',
+ * });
+ *
+ * try { dangerousWork(); }
+ * catch (err) { await notifier.notify(err as Error); }
  * ```
  */
 
+// Log client
 export { LogClient } from './client';
 export type {
   LogLevel,
@@ -37,6 +43,28 @@ export type {
   QueuedLog,
 } from './types';
 export { createLogEntry, validateLogEntry } from './utils';
+
+// Notifier / fault-tracking client
+export { NotifierClient } from './notifier';
+export type {
+  BacktraceFrame,
+  Breadcrumb,
+  NoticeRequest,
+  NoticeResponse,
+  NotifyOptions,
+  Fault,
+  Notice,
+  Comment,
+  FaultHistory,
+  User,
+  FaultListResponse,
+  NoticesResponse,
+  CommentsResponse,
+  HistoryResponse,
+  UsersResponse,
+  MessageResponse,
+  NotifierClientConfig,
+} from './notifier-types';
 
 
 

@@ -1,7 +1,7 @@
 {
   "name": "@cmdquery/log-ingestion-next",
-  "version": "0.1.0",
-  "description": "Client library for sending logs to the cmd-log ingestion service",
+  "version": "0.2.0",
+  "description": "Client library for log ingestion and error tracking with the cmd-log service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
