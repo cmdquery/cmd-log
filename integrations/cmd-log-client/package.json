@@ -1,6 +1,6 @@
 {
   "name": "@cmdquery/log-ingestion-next",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Client library for log ingestion and error tracking with the cmd-log service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,11 +20,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/cmd-log.git",
+    "url": "https://github.com/cmdquery/cmd-log.git",
     "directory": "integrations/cmd-log-client"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "files": [
     "dist",
@@ -39,4 +39,3 @@
     "node": ">=18.0.0"
   }
 }
-
