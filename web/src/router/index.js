@@ -44,34 +44,50 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/admin',
+    path: '/dashboard',
     name: 'Dashboard',
     component: Dashboard,
     meta: { requiresAuth: true }
   },
   {
-    path: '/admin/logs',
+    path: '/admin',
+    redirect: '/dashboard'
+  },
+  {
+    path: '/logs',
     name: 'Logs',
     component: LogsViewer,
     meta: { requiresAuth: true }
   },
   {
-    path: '/admin/logs/:id',
+    path: '/logs/:id',
     name: 'LogDetail',
     component: LogDetail,
     meta: { requiresAuth: true }
   },
   {
-    path: '/admin/health',
+    path: '/admin/logs',
+    redirect: '/logs'
+  },
+  {
+    path: '/health',
     name: 'Health',
     component: HealthStatus,
     meta: { requiresAuth: true }
   },
   {
-    path: '/admin/api-keys',
+    path: '/admin/health',
+    redirect: '/health'
+  },
+  {
+    path: '/api-keys',
     name: 'APIKeys',
     component: APIKeys,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/api-keys',
+    redirect: '/api-keys'
   }
 ]
 
