@@ -1,6 +1,6 @@
 {
   "name": "@cmdquery/log-ingestion-next",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Client library for log ingestion and error tracking with the cmd-log service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,7 +24,8 @@
     "directory": "integrations/cmd-log-client"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "files": [
     "dist",
